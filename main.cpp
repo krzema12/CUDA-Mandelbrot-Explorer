@@ -1,10 +1,14 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
+#include <sstream>
+#include <iomanip>
+using namespace std;
 
 #define WINDOW_WIDTH  1024
 #define WINDOW_HEIGHT 768
 
 GtkWidget *da;
+GtkWidget *statusBar;
 
 double x = 0.0;
 double y = 0.0;
@@ -63,6 +67,10 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 			return FALSE;
 	}
 	
+	ostringstream newStatus;
+	newStatus << fixed << setprecision(2) << "Center: " << x << " " << showpos << y << "i   Scale: 1.00";
+	
+	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());	
 	gtk_widget_queue_draw(da);
 	
 	return FALSE;
@@ -118,8 +126,8 @@ int main(int argc, char *argv[])
 	gtk_box_pack_start(GTK_BOX(vbox), da, TRUE, TRUE, 0);
 	
 	// creating a status bar
-	GtkWidget *statusBar = gtk_statusbar_new();
-	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, "Center: 0.25 + 1.16i   Scale: 3.45");
+	statusBar = gtk_statusbar_new();
+	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, "Center: 0.00 + 0.00i   Scale: 1.00");
 	gtk_box_pack_start(GTK_BOX(vbox), statusBar, FALSE, FALSE, 3);
 	
 	gtk_widget_show_all(window);
