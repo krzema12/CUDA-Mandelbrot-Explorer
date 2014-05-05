@@ -6,10 +6,8 @@ main.exe: main.cpp
 	
 else
 # Linux 
-cross_os: cross_os.o    
-	gcc -o cross_os cross_os.o `pkg-config --cflags --libs gtk+-2.0` -export-dynamic 
-	
-cross_os.o: cross_os.asm
-	nasm -f elf cross_os.asm 
+
+main.out: main.cpp
+	gcc `pkg-config --cflags gtk+-3.0` -o main.out main.cpp `pkg-config --libs gtk+-3.0`
 	
 endif
