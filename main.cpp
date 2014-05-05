@@ -1,7 +1,13 @@
 #include <gtk/gtk.h>
+#include <gdk/gdkkeysyms.h>
 
 #define WINDOW_WIDTH  1024
 #define WINDOW_HEIGHT 768
+
+GtkWidget *da;
+
+double x = 0.0;
+double y = 0.0;
 
 static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 {   
@@ -9,6 +15,8 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
    cairo_set_source_rgb(cr, 1, 1, 1);
    // fill in the background color
    cairo_paint(cr);
+   
+   cairo_translate(cr, x, y);
      
    // set color for rectangle
    cairo_set_source_rgb(cr, 0.42, 0.65, 0.80);
@@ -35,6 +43,31 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
    return FALSE;
 }
 
+gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
+{
+	switch (event->keyval)
+	{
+		case GDK_KEY_Left:
+			x -= 5.0;
+			break;
+		case GDK_KEY_Right:
+			x += 5.0;
+			break;
+		case GDK_KEY_Up:
+			y -= 5.0;
+			break;
+		case GDK_KEY_Down:
+			y += 5.0;
+			break;			
+		default:
+			return FALSE;
+	}
+	
+	gtk_widget_queue_draw(da);
+	
+	return FALSE;
+}
+
 int main(int argc, char *argv[])
 {
 	gtk_init(&argc, &argv);
@@ -44,11 +77,7 @@ int main(int argc, char *argv[])
 	gtk_window_set_default_size((GtkWindow*)window, WINDOW_WIDTH, WINDOW_HEIGHT);
 	gtk_window_set_title((GtkWindow*)window, "Mandelbrot Explorer by Piotr Krzemiński, 131546");
 	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-
-	// adding the drawing area to the window
-	//gtk_container_add(GTK_CONTAINER(window), da);
-	//gtk_widget_show(da);
-	//gtk_widget_show(window);
+	g_signal_connect(window, "key_press_event", G_CALLBACK(onKeyPress), NULL);
 	
 	// creating the main menu
 	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -83,7 +112,7 @@ int main(int argc, char *argv[])
 	gtk_box_pack_start(GTK_BOX(vbox), menuBar, FALSE, FALSE, 0);
 	
 	// creating a drawing area
-	GtkWidget *da = gtk_drawing_area_new();
+	da = gtk_drawing_area_new();
 	g_signal_connect(da, "draw", G_CALLBACK(draw_cb), NULL);
 	
 	gtk_box_pack_start(GTK_BOX(vbox), da, TRUE, TRUE, 0);
