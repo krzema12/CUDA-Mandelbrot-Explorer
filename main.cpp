@@ -44,11 +44,11 @@ int main(int argc, char *argv[])
    gtk_init(&argc, &argv);
 
    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+   gtk_window_set_default_size((GtkWindow*)window, WINDOW_WIDTH, WINDOW_HEIGHT);
    gtk_window_set_title((GtkWindow*)window, "Mandelbrot Explorer by Piotr Krzemiński, 131546");
    g_signal_connect(window, "destroy", G_CALLBACK (gtk_main_quit), NULL);
 
    da = gtk_drawing_area_new();
-   gtk_widget_set_size_request(da, WINDOW_WIDTH, WINDOW_HEIGHT);
    g_signal_connect(da, "draw", G_CALLBACK(draw_cb),  NULL);
 
    gtk_container_add(GTK_CONTAINER (window), da);
