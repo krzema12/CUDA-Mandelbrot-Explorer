@@ -15,9 +15,9 @@ GdkPixbuf *pixbuf;
 
 byte *rawBuffer;
 
-double centerX = 0.0;
+double centerX = -0.4;
 double centerY = 0.0;
-double scale = 1.0;
+double scale = 2.5;
 
 int bufferWidth = 640;
 int bufferHeight = 480;
@@ -42,8 +42,8 @@ void updateBuffer()
 	{
 		for (int x=0; x<bufferWidth; x++)
 		{		
-			complex<double> c((double)x*scale/(double)(bufferWidth - 1) + centerX,
-				(double)y*scale/(double)(bufferHeight - 1) + centerY);
+			complex<double> c((double)(x - bufferWidth/2)*scale/(double)(bufferWidth - 1) + centerX,
+				(double)(y - bufferHeight/2)*scale/(double)(bufferHeight - 1) + centerY);
 			complex<double> z(0.0, 0.0);
 			int i = 0;
 			
@@ -78,6 +78,10 @@ void updateBuffer()
 			}
 		}
 	}
+	
+	ostringstream newStatus;
+	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: " << noshowpos << scale;
+	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
 }
 
 gboolean frame_callback(GtkWindow *window, GdkEvent *event, gpointer data)
@@ -104,6 +108,13 @@ gboolean frame_callback(GtkWindow *window, GdkEvent *event, gpointer data)
 	return FALSE;
 }
 
+void setDefaultView()
+{
+	centerX = -0.4;
+	centerY = 0.0;
+	scale = 2.5;
+}
+
 gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
 	switch (event->keyval)
@@ -128,16 +139,15 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 		case GDK_KEY_KP_Subtract:
 			scale *= 1.05;
 			break;
+		case GDK_KEY_r:
+			setDefaultView();
+			break;
 		default:
 			return FALSE;
 	}
 	
 	updateBuffer();
-	
-	ostringstream newStatus;
-	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: " << noshowpos << scale;
-	
-	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
+
 	gtk_widget_queue_draw(da);
 	
 	return FALSE;
