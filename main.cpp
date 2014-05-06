@@ -2,49 +2,62 @@
 #include <gdk/gdkkeysyms.h>
 #include <sstream>
 #include <iomanip>
+#include <complex>
 using namespace std;
+typedef unsigned char byte;
 
 #define WINDOW_WIDTH  1024
 #define WINDOW_HEIGHT 768
 
 GtkWidget *da;
 GtkWidget *statusBar;
+GdkPixbuf *pixbuf;
 
-double x = 0.0;
-double y = 0.0;
+byte *rawBuffer;
+
+double centerX = 0.0;
+double centerY = 0.0;
+double scale = 1.0;
+
+int bufferWidth = 640;
+int bufferHeight = 480;
 
 static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 {   
-   // Set color for background
-   cairo_set_source_rgb(cr, 1, 1, 1);
-   // fill in the background color
-   cairo_paint(cr);
+   // // Set color for background
+   // cairo_set_source_rgb(cr, 1, 1, 1);
+   // // fill in the background color
+   // cairo_paint(cr);
    
-   cairo_translate(cr, x, y);
+   // cairo_translate(cr, x, y);
      
-   // set color for rectangle
-   cairo_set_source_rgb(cr, 0.42, 0.65, 0.80);
-   // set the line width
-   cairo_set_line_width(cr,6);
-   // draw the rectangle's path beginning at 3,3
-   cairo_rectangle (cr, 3, 3, 100, 100);
-   // stroke the rectangle's path with the chosen color so it's actually visible
-   cairo_stroke(cr);
+   // // set color for rectangle
+   // cairo_set_source_rgb(cr, 0.42, 0.65, 0.80);
+   // // set the line width
+   // cairo_set_line_width(cr,6);
+   // // draw the rectangle's path beginning at 3,3
+   // cairo_rectangle (cr, 3, 3, 100, 100);
+   // // stroke the rectangle's path with the chosen color so it's actually visible
+   // cairo_stroke(cr);
 
-   // draw circle
-   cairo_set_source_rgb(cr, 0.17, 0.63, 0.12);
-   cairo_set_line_width(cr,2);
-   cairo_arc(cr, 150, 210, 20, 0, 2*G_PI);
-   cairo_stroke(cr);
+   // // draw circle
+   // cairo_set_source_rgb(cr, 0.17, 0.63, 0.12);
+   // cairo_set_line_width(cr,2);
+   // cairo_arc(cr, 150, 210, 20, 0, 2*G_PI);
+   // cairo_stroke(cr);
 
-   // draw horizontal line
-   cairo_set_source_rgb(cr, 0.77, 0.16, 0.13);
-   cairo_set_line_width(cr, 6);
-   cairo_move_to(cr, 80,160);
-   cairo_line_to(cr, 200, 160);
-   cairo_stroke(cr);
+   // // draw horizontal line
+   // cairo_set_source_rgb(cr, 0.77, 0.16, 0.13);
+   // cairo_set_line_width(cr, 6);
+   // cairo_move_to(cr, 80,160);
+   // cairo_line_to(cr, 200, 160);
+   // cairo_stroke(cr);
 
-   return FALSE;
+	gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
+	cairo_paint(cr);
+	cairo_fill(cr);
+
+	return FALSE;
 }
 
 gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
@@ -52,23 +65,71 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 	switch (event->keyval)
 	{
 		case GDK_KEY_Left:
-			x -= 5.0;
+			centerX -= 0.05;
 			break;
 		case GDK_KEY_Right:
-			x += 5.0;
+			centerX += 0.05;
 			break;
 		case GDK_KEY_Up:
-			y -= 5.0;
+			centerY -= 0.05;
 			break;
 		case GDK_KEY_Down:
-			y += 5.0;
-			break;			
+			centerY += 0.05;
+			break;
+		case GDK_KEY_plus:
+			scale /= 1.05;
+			break;
+		case GDK_KEY_minus:
+			scale *= 1.05;
+			break;
 		default:
 			return FALSE;
 	}
 	
+	int newBufferWidth = gtk_widget_get_allocated_width(da);
+	int newBufferHeight = gtk_widget_get_allocated_height(da);
+	
+	if (newBufferWidth != bufferWidth || newBufferHeight != bufferHeight)
+	{
+		delete[] rawBuffer;
+		g_object_unref(pixbuf);
+		
+		bufferWidth = newBufferWidth;
+		bufferHeight = newBufferHeight;
+		
+		rawBuffer = new byte[bufferWidth*bufferHeight*3];
+		pixbuf = gdk_pixbuf_new_from_data(rawBuffer, GDK_COLORSPACE_RGB,
+			FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);
+	}
+	
+	int posInBuffer = 0;
+
+	for (int y=0; y<bufferHeight; y++)
+	{
+		for (int x=0; x<bufferWidth; x++)
+		{
+			complex<double> c((double)x*scale/(double)(bufferWidth - 1) + centerX,
+				(double)y*scale/(double)(bufferHeight - 1) + centerY);
+			complex<double> z(0.0, 0.0);
+			int i;
+			
+			for (i=0; i<20; i++)
+			{
+				z = z*z + c;
+				
+				if (real(z)*real(z) + imag(z)*imag(z) > 2.0)
+				//if (norm(z) > 2.0)
+					break;
+			}
+		
+			rawBuffer[posInBuffer++] = (i*5)&0xFF;
+			rawBuffer[posInBuffer++] = (i*5)%0xFF;
+			rawBuffer[posInBuffer++] = (i*5)%0xFF;
+		}
+	}
+	
 	ostringstream newStatus;
-	newStatus << fixed << setprecision(2) << "Center: " << x << " " << showpos << y << "i   Scale: 1.00";
+	newStatus << fixed << setprecision(2) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: " << noshowpos << scale;
 	
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());	
 	gtk_widget_queue_draw(da);
@@ -79,6 +140,11 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 int main(int argc, char *argv[])
 {
 	gtk_init(&argc, &argv);
+	
+	rawBuffer = new byte[bufferWidth*bufferHeight*3];
+	
+	pixbuf = gdk_pixbuf_new_from_data(rawBuffer, GDK_COLORSPACE_RGB,
+		FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);
 
 	// creating a window
 	GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -141,10 +207,9 @@ int main(int argc, char *argv[])
 	g_signal_connect(da, "draw", G_CALLBACK(draw_cb), NULL);
 	
 	gtk_box_pack_start(GTK_BOX(vbox), da, TRUE, TRUE, 0);
-	
+
 	// creating a status bar
 	statusBar = gtk_statusbar_new();
-	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, "Center: 0.00 + 0.00i   Scale: 1.00");
 	gtk_box_pack_start(GTK_BOX(vbox), statusBar, FALSE, FALSE, 3);
 	
 	gtk_widget_show_all(window);
