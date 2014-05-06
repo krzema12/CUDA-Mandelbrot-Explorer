@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 	// creating a window
 	GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_default_size((GtkWindow*)window, WINDOW_WIDTH, WINDOW_HEIGHT);
-	gtk_window_set_title((GtkWindow*)window, "Mandelbrot Explorer by Piotr Krzemiński, 131546");
+	gtk_window_set_title((GtkWindow*)window, "Mandelbrot Explorer");
 	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 	g_signal_connect(window, "key_press_event", G_CALLBACK(onKeyPress), NULL);
 	
@@ -93,7 +93,6 @@ int main(int argc, char *argv[])
 	
 	GtkWidget *menuBar = gtk_menu_bar_new();
 	GtkWidget *deviceMenu = gtk_menu_new();
-	GtkWidget *helpMenu = gtk_menu_new();
 	
 	// "Device" menu and radio buttons
 	GtkWidget *deviceMenuItem = gtk_menu_item_new_with_label("Device");
@@ -109,12 +108,30 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), dummyDevice2MenuItem);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), deviceMenuItem);
 	
+	// "Palette" menu and radio buttons
+	GtkWidget *paletteMenu = gtk_menu_new();
+	GtkWidget *paletteMenuItem = gtk_menu_item_new_with_label("Palette");
+	GSList *palettesRadioGroup = NULL;
+	GtkWidget *palette1MenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Grayscale");
+	palettesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(palette1MenuItem));
+	GtkWidget *palette2MenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Black to green");
+	// set "palette1MenuItem" to currently selected
+	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(palette1MenuItem), TRUE);
+	
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(paletteMenuItem), paletteMenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), palette1MenuItem);
+	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), palette2MenuItem);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), paletteMenuItem);
+	
 	// "Help" menu
+	GtkWidget *helpMenu = gtk_menu_new();
 	GtkWidget *helpMenuItem = gtk_menu_item_new_with_label("Help");
 	GtkWidget *usageMenuItem = gtk_menu_item_new_with_label("Usage");
+	GtkWidget *aboutMenuItem = gtk_menu_item_new_with_label("About");
 	
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(helpMenuItem), helpMenu);
 	gtk_menu_shell_append(GTK_MENU_SHELL(helpMenu), usageMenuItem);
+	gtk_menu_shell_append(GTK_MENU_SHELL(helpMenu), aboutMenuItem);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), helpMenuItem);
 	
 	gtk_box_pack_start(GTK_BOX(vbox), menuBar, FALSE, FALSE, 0);
