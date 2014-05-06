@@ -63,10 +63,19 @@ void updateBuffer()
 				if (i == 100)
 					i = 0;
 			}
-		
-			rawBuffer[posInBuffer++] = 0;//(i*12)&0xFF;
-			rawBuffer[posInBuffer++] = (i*2)%0xFF;
-			rawBuffer[posInBuffer++] = 0;//(i*12)%0xFF;
+			
+			if (i < 50)
+			{	
+				rawBuffer[posInBuffer++] = 0;
+				rawBuffer[posInBuffer++] = (i*4);
+				rawBuffer[posInBuffer++] = 0;
+			}
+			else
+			{
+				rawBuffer[posInBuffer++] = (i - 50)*4;
+				rawBuffer[posInBuffer++] = 0xFF;
+				rawBuffer[posInBuffer++] = (i - 100)*4;
+			}
 		}
 	}
 }
