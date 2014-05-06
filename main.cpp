@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iomanip>
 #include <complex>
+#include <ctime>
 using namespace std;
 typedef unsigned char byte;
 
@@ -37,6 +38,8 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 void updateBuffer()
 {
 	int posInBuffer = 0;
+	
+	clock_t begin = clock();
 
 	for (int y=0; y<bufferHeight; y++)
 	{
@@ -79,8 +82,11 @@ void updateBuffer()
 		}
 	}
 	
+	
+	
 	ostringstream newStatus;
-	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: " << noshowpos << scale;
+	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: "
+		<< noshowpos << scale << "   Time: " << (int)(clock() - begin)*1000/CLOCKS_PER_SEC << " ms";
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
 }
 
