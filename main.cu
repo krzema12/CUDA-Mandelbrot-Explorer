@@ -65,9 +65,11 @@ __global__ void mandelbrotPixel(byte *output, byte *palette, int width, int heig
     
 	if ((x >= width) || (y >= height))
 		return;
+
+	float ratio = (float)width/(float)height;
     	
 	float cReal, cImag;
-	cReal = (float)(x - width/2)*scale/(float)(width - 1) + centerX;
+	cReal = (float)(x - width/2)*scale*ratio/(float)(width - 1) + centerX;
 	cImag = (float)(y - height/2)*scale/(float)(height - 1) + centerY;
     
 	float zReal = 0.0f, zImag = 0.0, z2Real, z2Imag;
@@ -99,6 +101,8 @@ void updateBuffer()
 	
 	Timer timer;
 	timer.start();
+
+	double ratio = (double)bufferWidth/(double)bufferHeight;
 	
 	if (currentDevice == CPU)
 	{
@@ -106,7 +110,7 @@ void updateBuffer()
 		{
 			for (int x=0; x<bufferWidth; x++)
 			{		
-				complex<double> c((double)(x - bufferWidth/2)*scale/(double)(bufferWidth - 1) + centerX,
+				complex<double> c((double)(x - bufferWidth/2)*scale*ratio/(double)(bufferWidth - 1) + centerX,
 					(double)(y - bufferHeight/2)*scale/(double)(bufferHeight - 1) + centerY);
 				complex<double> z(0.0, 0.0);
 				int i = 510;
