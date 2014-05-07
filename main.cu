@@ -58,19 +58,19 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 	return FALSE;
 }
 
-__global__ void mandelbrotPixel(byte *output, byte *palette, int width, int height, double centerX, double centerY, double scale)
+__global__ void mandelbrotPixel(byte *output, byte *palette, int width, int height, float centerX, float centerY, float scale)
 {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
+	int y = blockDim.y * blockIdx.y + threadIdx.y;
     
-    if ((x >= width) || (y >= height))
-    	return;
+	if ((x >= width) || (y >= height))
+		return;
     	
-    double cReal, cImag;
-    cReal = (double)(x - width/2)*scale/(double)(width - 1) + centerX;
-    cImag = (double)(y - height/2)*scale/(double)(height - 1) + centerY;
+	float cReal, cImag;
+	cReal = (float)(x - width/2)*scale/(float)(width - 1) + centerX;
+	cImag = (float)(y - height/2)*scale/(float)(height - 1) + centerY;
     
-	double zReal = 0.0f, zImag = 0.0f, z2Real, z2Imag;
+	float zReal = 0.0f, zImag = 0.0, z2Real, z2Imag;
 	
 	int i;
 	
@@ -168,7 +168,8 @@ void updateStatusBar(double time)
 	else
 	{
 		int memInMB = (deviceProps[currentDevice - 1].totalGlobalMem + 1024*1024 - 1)/(1024*1024);
-		newStatus << deviceProps[currentDevice - 1].name << "    " << memInMB << " MB";
+		newStatus << deviceProps[currentDevice - 1].name << "    " << memInMB << " MB    CUDA Compute Capability: " <<
+			deviceProps[currentDevice - 1].major << "." << deviceProps[currentDevice - 1].minor;
 	}
 		
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
