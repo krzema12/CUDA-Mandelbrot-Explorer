@@ -1,5 +1,6 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
+#include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <complex>
@@ -20,6 +21,7 @@ GtkWidget *statusBar;
 GdkPixbuf *pixbuf;
 
 byte *rawBuffer;
+byte *deviceBuffer;
 
 int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
@@ -39,6 +41,51 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 	cairo_fill(cr);
 
 	return FALSE;
+}
+
+__global__ void mandelbrotPixel(byte *output, int width, int height, float centerX, float centerY, float scale)
+{
+	int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+    
+    if ((x >= width) || (y >= height))
+    	return;
+    	
+    float cReal, cImag;
+    cReal = (float)(x - width/2)*scale/(float)(width - 1) + centerX;
+    cImag = (float)(y - height/2)*scale/(float)(height - 1) + centerY;
+    
+	float zReal = 0.0f, zImag = 0.0f, z2Real, z2Imag;
+	
+	int i;
+	
+	for (i = 0; i<512; i++)
+	{
+		z2Real = zReal*zReal - zImag*zImag + cReal;
+		z2Imag = 2.0f*zReal*zImag + cImag;
+		
+		zReal = z2Real;
+		zImag = z2Imag;
+		
+		if (zReal*zReal + zImag*zImag > 4.0f)
+			break;
+	}
+	
+	if (i == 512)
+		i = 0;
+		
+	if (i <= 255)
+	{ 	
+		output[(width*y + x)*3] = 0;
+		output[(width*y + x)*3 + 1] = i;
+		output[(width*y + x)*3 + 2] = 0;
+    }
+    else
+    {
+		output[(width*y + x)*3] = i - 255;
+		output[(width*y + x)*3 + 1] = 255;
+		output[(width*y + x)*3 + 2] = i - 255;    	
+    }
 }
 
 void updateBuffer()
@@ -90,6 +137,24 @@ void updateBuffer()
 			}
 		}
 	}
+	else
+	{
+		if (deviceBuffer != 0)
+			cudaFree(deviceBuffer);
+			
+		cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
+		
+		dim3 threads(8, 8);
+		dim3 grid((bufferWidth + 7)/8, (bufferHeight + 7)/8);
+		
+		mandelbrotPixel<<<grid, threads>>>(deviceBuffer, bufferWidth, bufferHeight, centerX, centerY, scale);
+		
+		//cudaError_t err = cudaSuccess; 
+		//err = cudaGetLastError();
+		//cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err);
+		
+		cudaMemcpy(rawBuffer, deviceBuffer, bufferWidth*bufferHeight*3, cudaMemcpyDeviceToHost);
+	}
 	
 	clock_t time = clock() - begin;
 
@@ -101,7 +166,10 @@ void updateBuffer()
 	if (currentDevice == 0)
 		newStatus << "CPU";
 	else
-		newStatus << deviceProps[currentDevice - 1].name;
+	{
+		int memInMB = (deviceProps[currentDevice - 1].totalGlobalMem + 1024*1024 - 1)/(1024*1024);
+		newStatus << deviceProps[currentDevice - 1].name << "    " << memInMB << " MB";
+	}
 		
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
 }
@@ -112,7 +180,9 @@ gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
 		lastCanvasHeight != event->configure.height)
 	{
 		delete[] rawBuffer;
-		g_object_unref(pixbuf);
+		
+		if (pixbuf != NULL)
+			g_object_unref(pixbuf);
 		
 		bufferWidth = event->configure.width;
 		bufferHeight = event->configure.height;
@@ -132,13 +202,16 @@ gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
 
 void menuitem_response(GtkWidget *widget, int device)
 {
-	// changing the current device
-	currentDevice = device;
+	if (device != currentDevice)
+	{
+		// changing the current device
+		currentDevice = device;
 	
-	if (device != CPU)
-		cudaSetDevice(device - 1);
+		if (device != CPU)
+			cudaSetDevice(device - 1);
 
-	updateBuffer();
+		updateBuffer();
+	}
 }
 
 void setDefaultView()
