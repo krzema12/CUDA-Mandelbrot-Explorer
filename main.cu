@@ -73,7 +73,7 @@ __global__ void mandelbrotPixel(byte *output, byte *palette, int width, int heig
 	
 	int i;
 	
-	for (i = 0; i<511; i++)
+	for (i = 0; i<510; i++)
 	{
 		z2Real = zReal*zReal - zImag*zImag + cReal;
 		z2Imag = 2.0f*zReal*zImag + cImag;
@@ -107,14 +107,14 @@ void updateBuffer()
 				complex<double> c((double)(x - bufferWidth/2)*scale/(double)(bufferWidth - 1) + centerX,
 					(double)(y - bufferHeight/2)*scale/(double)(bufferHeight - 1) + centerY);
 				complex<double> z(0.0, 0.0);
-				int i = 511;
+				int i = 510;
 			
 				// checking if we're in the cardioid
 				double q = (real(c) - 0.25)*(real(c) - 0.25) + imag(c)*imag(c);
 			
 				if ((q*(q + (real(c) - 0.25)) >= 0.25*imag(c)*imag(c)) && ((real(c) + 1)*(real(c) + 1) + imag(c)*imag(c) >= 0.0625))
 				{
-					for (i=0; i<511; i++)
+					for (i=0; i<510; i++)
 					{
 						z = z*z + c;
 					
