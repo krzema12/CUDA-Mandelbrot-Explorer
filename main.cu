@@ -6,6 +6,7 @@
 #include <complex>
 #include <ctime>
 #include <cuda_runtime.h>
+#include "Timer.h"
 using namespace std;
 typedef unsigned char byte;
 
@@ -96,7 +97,8 @@ void updateBuffer()
 {
 	int bufferPos = 0;
 	
-	clock_t begin = clock();
+	Timer timer;
+	timer.start();
 	
 	if (currentDevice == CPU)
 	{
@@ -151,10 +153,8 @@ void updateBuffer()
 		cudaMemcpy(rawBuffer, deviceBuffer, bufferWidth*bufferHeight*3, cudaMemcpyDeviceToHost);
 	}
 	
-	clock_t time = clock() - begin;
-	double seconds = (double)time/(double)CLOCKS_PER_SEC;
-
-	updateStatusBar(seconds);
+	timer.stop();
+	updateStatusBar(timer.getElapsedTimeInSec());
 }
 
 void updateStatusBar(double time)
