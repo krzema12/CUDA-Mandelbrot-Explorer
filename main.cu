@@ -23,6 +23,11 @@ GdkPixbuf *pixbuf;
 byte *rawBuffer;
 byte *deviceBuffer;
 
+byte *currentPalette;
+byte *devicePalette;
+
+int currentPaletteID = 0;
+
 int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
 
@@ -34,6 +39,15 @@ int bufferHeight = 480;
 int lastCanvasWidth = 0;
 int lastCanvasHeight = 0;
 
+void updateStatusBar(double time);
+
+void setDefaultView()
+{
+	centerX = -0.7;
+	centerY = 0.0;
+	scale = 3.0;
+}
+
 static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 {   
 	gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
@@ -43,7 +57,7 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 	return FALSE;
 }
 
-__global__ void mandelbrotPixel(byte *output, int width, int height, float centerX, float centerY, float scale)
+__global__ void mandelbrotPixel(byte *output, byte *palette, int width, int height, double centerX, double centerY, double scale)
 {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
@@ -51,15 +65,15 @@ __global__ void mandelbrotPixel(byte *output, int width, int height, float cente
     if ((x >= width) || (y >= height))
     	return;
     	
-    float cReal, cImag;
-    cReal = (float)(x - width/2)*scale/(float)(width - 1) + centerX;
-    cImag = (float)(y - height/2)*scale/(float)(height - 1) + centerY;
+    double cReal, cImag;
+    cReal = (double)(x - width/2)*scale/(double)(width - 1) + centerX;
+    cImag = (double)(y - height/2)*scale/(double)(height - 1) + centerY;
     
-	float zReal = 0.0f, zImag = 0.0f, z2Real, z2Imag;
+	double zReal = 0.0f, zImag = 0.0f, z2Real, z2Imag;
 	
 	int i;
 	
-	for (i = 0; i<512; i++)
+	for (i = 0; i<511; i++)
 	{
 		z2Real = zReal*zReal - zImag*zImag + cReal;
 		z2Imag = 2.0f*zReal*zImag + cImag;
@@ -70,27 +84,17 @@ __global__ void mandelbrotPixel(byte *output, int width, int height, float cente
 		if (zReal*zReal + zImag*zImag > 4.0f)
 			break;
 	}
-	
-	if (i == 512)
-		i = 0;
 		
-	if (i <= 255)
-	{ 	
-		output[(width*y + x)*3] = 0;
-		output[(width*y + x)*3 + 1] = i;
-		output[(width*y + x)*3 + 2] = 0;
-    }
-    else
-    {
-		output[(width*y + x)*3] = i - 255;
-		output[(width*y + x)*3 + 1] = 255;
-		output[(width*y + x)*3 + 2] = i - 255;    	
-    }
+	int bufferPos = (width*y + x)*3;
+		
+	output[bufferPos++] = palette[i*3];
+	output[bufferPos++] = palette[i*3 + 1];
+	output[bufferPos++] = palette[i*3 + 2];
 }
 
 void updateBuffer()
 {
-	int posInBuffer = 0;
+	int bufferPos = 0;
 	
 	clock_t begin = clock();
 	
@@ -103,37 +107,25 @@ void updateBuffer()
 				complex<double> c((double)(x - bufferWidth/2)*scale/(double)(bufferWidth - 1) + centerX,
 					(double)(y - bufferHeight/2)*scale/(double)(bufferHeight - 1) + centerY);
 				complex<double> z(0.0, 0.0);
-				int i = 0;
+				int i = 511;
 			
 				// checking if we're in the cardioid
 				double q = (real(c) - 0.25)*(real(c) - 0.25) + imag(c)*imag(c);
 			
 				if ((q*(q + (real(c) - 0.25)) >= 0.25*imag(c)*imag(c)) && ((real(c) + 1)*(real(c) + 1) + imag(c)*imag(c) >= 0.0625))
 				{
-					for (i=0; i<100; i++)
+					for (i=0; i<511; i++)
 					{
 						z = z*z + c;
 					
 						if (real(z)*real(z) + imag(z)*imag(z) > 4.0)
 							break;
 					}
-				
-					if (i == 100)
-						i = 0;
 				}
-			
-				if (i < 50)
-				{	
-					rawBuffer[posInBuffer++] = 0;
-					rawBuffer[posInBuffer++] = (i*4);
-					rawBuffer[posInBuffer++] = 0;
-				}
-				else
-				{
-					rawBuffer[posInBuffer++] = (i - 50)*4;
-					rawBuffer[posInBuffer++] = 0xFF;
-					rawBuffer[posInBuffer++] = (i - 100)*4;
-				}
+	
+				rawBuffer[bufferPos++] = currentPalette[i*3];
+				rawBuffer[bufferPos++] = currentPalette[i*3 + 1];
+				rawBuffer[bufferPos++] = currentPalette[i*3 + 2];
 			}
 		}
 	}
@@ -143,11 +135,14 @@ void updateBuffer()
 			cudaFree(deviceBuffer);
 			
 		cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
+		cudaMalloc((void**)&devicePalette, 512*3);
+		
+		cudaMemcpy(devicePalette, currentPalette, 512*3, cudaMemcpyHostToDevice);
 		
 		dim3 threads(8, 8);
 		dim3 grid((bufferWidth + 7)/8, (bufferHeight + 7)/8);
-		
-		mandelbrotPixel<<<grid, threads>>>(deviceBuffer, bufferWidth, bufferHeight, centerX, centerY, scale);
+	
+		mandelbrotPixel<<<grid, threads>>>(deviceBuffer, devicePalette, bufferWidth, bufferHeight, centerX, centerY, scale);
 		
 		//cudaError_t err = cudaSuccess; 
 		//err = cudaGetLastError();
@@ -157,11 +152,16 @@ void updateBuffer()
 	}
 	
 	clock_t time = clock() - begin;
+	double seconds = (double)time/(double)CLOCKS_PER_SEC;
 
-	// updating the status bar
+	updateStatusBar(seconds);
+}
+
+void updateStatusBar(double time)
+{
 	ostringstream newStatus;
 	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: "
-		<< noshowpos << scale << "   Time: " << (int)time*1000/CLOCKS_PER_SEC << " ms   |   ";
+		<< noshowpos << scale << "   Time: " << time << " ms   |   ";
 	
 	if (currentDevice == 0)
 		newStatus << "CPU";
@@ -172,6 +172,7 @@ void updateBuffer()
 	}
 		
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
+	gtk_widget_queue_draw(statusBar);
 }
 
 gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
@@ -189,7 +190,7 @@ gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
 		
 		rawBuffer = new byte[bufferWidth*bufferHeight*3];
 		pixbuf = gdk_pixbuf_new_from_data(rawBuffer, GDK_COLORSPACE_RGB,
-			FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);
+			FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);			
 
 		updateBuffer();
 	
@@ -208,17 +209,55 @@ void menuitem_response(GtkWidget *widget, int device)
 		currentDevice = device;
 	
 		if (device != CPU)
+		{
 			cudaSetDevice(device - 1);
+		}
 
 		updateBuffer();
 	}
 }
 
-void setDefaultView()
+int amplify(int val)
 {
-	centerX = -0.7;
-	centerY = 0.0;
-	scale = 2.5;
+	float floatVal = (float)val/255.0f;
+	float amplified = sqrtf(floatVal);
+	
+	return (int)(amplified*255.0f);
+}
+
+void paletteChanged(GtkWidget *widget, int paletteID)
+{
+	if (paletteID != currentPaletteID)
+	{
+		int arrayPos = 0;
+		
+		// grayscale
+		if (paletteID == 0)
+		{
+			for (int i=0; i<511; i++)
+			{
+				currentPalette[arrayPos++] = 255 - amplify(i/2);
+				currentPalette[arrayPos++] = 255 - amplify(i/2);
+				currentPalette[arrayPos++] = 255 - amplify(i/2);
+			}
+		}
+		else if (paletteID == 1)
+		{
+			for (int i=0; i<510; i++)
+			{
+				currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
+				currentPalette[arrayPos++] = amplify(i <= 255 ? i : 255);
+				currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
+			}
+			
+			currentPalette[arrayPos++] = 0;
+			currentPalette[arrayPos++] = 0;
+			currentPalette[arrayPos++] = 0;			
+		}
+		
+		currentPaletteID = paletteID;
+		updateBuffer();
+	}
 }
 
 gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
@@ -262,6 +301,24 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 int main(int argc, char *argv[])
 {
 	setDefaultView();
+	
+	// ----------------
+
+	currentPalette = new byte[512*3];
+	int arrayPos = 0;
+	
+	for (int i=0; i<510; i++)
+	{
+		currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
+		currentPalette[arrayPos++] = amplify(i <= 255 ? i : 255);
+		currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
+	}
+	
+	currentPalette[arrayPos++] = 0;
+	currentPalette[arrayPos++] = 0;
+	currentPalette[arrayPos++] = 0;		
+	
+	// ----------------
 
 	gtk_init(&argc, &argv);
 	
@@ -312,15 +369,19 @@ int main(int argc, char *argv[])
 	GtkWidget *paletteMenu = gtk_menu_new();
 	GtkWidget *paletteMenuItem = gtk_menu_item_new_with_label("Palette");
 	GSList *palettesRadioGroup = NULL;
-	GtkWidget *palette1MenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Grayscale");
-	palettesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(palette1MenuItem));
-	GtkWidget *palette2MenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Black to green");
-	// set "palette1MenuItem" to currently selected
-	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(palette1MenuItem), TRUE);
+	GtkWidget *grayscaleMenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Grayscale");
+	
+	palettesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(grayscaleMenuItem));
+	GtkWidget *blackGreenWhiteMenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Black-green-white");
+	
+	// set "Black-green-white" as currently selected
+	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(blackGreenWhiteMenuItem), TRUE);
 	
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(paletteMenuItem), paletteMenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), palette1MenuItem);
-	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), palette2MenuItem);
+	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), grayscaleMenuItem);
+	g_signal_connect(grayscaleMenuItem, "activate", G_CALLBACK(paletteChanged), (gpointer)0);
+	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), blackGreenWhiteMenuItem);
+	g_signal_connect(blackGreenWhiteMenuItem, "activate", G_CALLBACK(paletteChanged), (gpointer)1);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), paletteMenuItem);
 	
 	// "Help" menu
