@@ -4,11 +4,16 @@
 #include <iomanip>
 #include <complex>
 #include <ctime>
+#include <cuda_runtime.h>
 using namespace std;
 typedef unsigned char byte;
 
+// http://developer.download.nvidia.com/compute/cuda/4_1/rel/toolkit/docs/online/group__CUDART__DEVICE_g028e5b0474379eaf5f5d54657d48600b.html#g028e5b0474379eaf5f5d54657d48600b
+
 #define WINDOW_WIDTH  1024
 #define WINDOW_HEIGHT 768
+
+#define CPU	0
 
 GtkWidget *da;
 GtkWidget *statusBar;
@@ -16,9 +21,10 @@ GdkPixbuf *pixbuf;
 
 byte *rawBuffer;
 
-double centerX = -0.4;
-double centerY = 0.0;
-double scale = 2.5;
+int devicesCount, currentDevice = 0;
+cudaDeviceProp *deviceProps;
+
+double centerX, centerY, scale;
 
 int bufferWidth = 640;
 int bufferHeight = 480;
@@ -40,57 +46,67 @@ void updateBuffer()
 	int posInBuffer = 0;
 	
 	clock_t begin = clock();
-
-	for (int y=0; y<bufferHeight; y++)
+	
+	if (currentDevice == CPU)
 	{
-		for (int x=0; x<bufferWidth; x++)
-		{		
-			complex<double> c((double)(x - bufferWidth/2)*scale/(double)(bufferWidth - 1) + centerX,
-				(double)(y - bufferHeight/2)*scale/(double)(bufferHeight - 1) + centerY);
-			complex<double> z(0.0, 0.0);
-			int i = 0;
+		for (int y=0; y<bufferHeight; y++)
+		{
+			for (int x=0; x<bufferWidth; x++)
+			{		
+				complex<double> c((double)(x - bufferWidth/2)*scale/(double)(bufferWidth - 1) + centerX,
+					(double)(y - bufferHeight/2)*scale/(double)(bufferHeight - 1) + centerY);
+				complex<double> z(0.0, 0.0);
+				int i = 0;
 			
-			// checking if we're in the cardioid
-			double q = (real(c) - 0.25)*(real(c) - 0.25) + imag(c)*imag(c);
+				// checking if we're in the cardioid
+				double q = (real(c) - 0.25)*(real(c) - 0.25) + imag(c)*imag(c);
 			
-			if ((q*(q + (real(c) - 0.25)) >= 0.25*imag(c)*imag(c)) && ((real(c) + 1)*(real(c) + 1) + imag(c)*imag(c) >= 0.0625))
-			{
-				for (i=0; i<100; i++)
+				if ((q*(q + (real(c) - 0.25)) >= 0.25*imag(c)*imag(c)) && ((real(c) + 1)*(real(c) + 1) + imag(c)*imag(c) >= 0.0625))
 				{
-					z = z*z + c;
+					for (i=0; i<100; i++)
+					{
+						z = z*z + c;
 					
-					if (real(z)*real(z) + imag(z)*imag(z) > 2.0)
-						break;
-				}
+						if (real(z)*real(z) + imag(z)*imag(z) > 4.0)
+							break;
+					}
 				
-				if (i == 100)
-					i = 0;
-			}
+					if (i == 100)
+						i = 0;
+				}
 			
-			if (i < 50)
-			{	
-				rawBuffer[posInBuffer++] = 0;
-				rawBuffer[posInBuffer++] = (i*4);
-				rawBuffer[posInBuffer++] = 0;
-			}
-			else
-			{
-				rawBuffer[posInBuffer++] = (i - 50)*4;
-				rawBuffer[posInBuffer++] = 0xFF;
-				rawBuffer[posInBuffer++] = (i - 100)*4;
+				if (i < 50)
+				{	
+					rawBuffer[posInBuffer++] = 0;
+					rawBuffer[posInBuffer++] = (i*4);
+					rawBuffer[posInBuffer++] = 0;
+				}
+				else
+				{
+					rawBuffer[posInBuffer++] = (i - 50)*4;
+					rawBuffer[posInBuffer++] = 0xFF;
+					rawBuffer[posInBuffer++] = (i - 100)*4;
+				}
 			}
 		}
 	}
 	
-	
-	
+	clock_t time = clock() - begin;
+
+	// updating the status bar
 	ostringstream newStatus;
 	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: "
-		<< noshowpos << scale << "   Time: " << (int)(clock() - begin)*1000/CLOCKS_PER_SEC << " ms";
+		<< noshowpos << scale << "   Time: " << (int)time*1000/CLOCKS_PER_SEC << " ms   |   ";
+	
+	if (currentDevice == 0)
+		newStatus << "CPU";
+	else
+		newStatus << deviceProps[currentDevice - 1].name;
+		
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
 }
 
-gboolean frame_callback(GtkWindow *window, GdkEvent *event, gpointer data)
+gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
 {
 	if (lastCanvasWidth != event->configure.width ||
 		lastCanvasHeight != event->configure.height)
@@ -114,9 +130,20 @@ gboolean frame_callback(GtkWindow *window, GdkEvent *event, gpointer data)
 	return FALSE;
 }
 
+void menuitem_response(GtkWidget *widget, int device)
+{
+	// changing the current device
+	currentDevice = device;
+	
+	if (device != CPU)
+		cudaSetDevice(device - 1);
+
+	updateBuffer();
+}
+
 void setDefaultView()
 {
-	centerX = -0.4;
+	centerX = -0.7;
 	centerY = 0.0;
 	scale = 2.5;
 }
@@ -139,11 +166,11 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 			break;
 		case GDK_KEY_equal:
 		case GDK_KEY_KP_Add:
-			scale /= 1.05;
+			scale /= 1.1;
 			break;
 		case GDK_KEY_minus:
 		case GDK_KEY_KP_Subtract:
-			scale *= 1.05;
+			scale *= 1.1;
 			break;
 		case GDK_KEY_r:
 			setDefaultView();
@@ -161,6 +188,8 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 
 int main(int argc, char *argv[])
 {
+	setDefaultView();
+
 	gtk_init(&argc, &argv);
 	
 	// creating a window
@@ -180,15 +209,30 @@ int main(int argc, char *argv[])
 	// "Device" menu and radio buttons
 	GtkWidget *deviceMenuItem = gtk_menu_item_new_with_label("Device");
 	GSList *devicesRadioGroup = NULL;
-	GtkWidget *dummyDevice1MenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, "Dummy device 1");
-	devicesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(dummyDevice1MenuItem));
-	GtkWidget *dummyDevice2MenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, "Dummy device 2");
-	// set "dummyDevice2MenuItem" to currently selected
-	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(dummyDevice2MenuItem), TRUE);
+	
+	GtkWidget *cpuMenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, "CPU");
+	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), cpuMenuItem);
+	g_signal_connect(cpuMenuItem, "activate", G_CALLBACK(menuitem_response), (gpointer)0);
+	devicesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(cpuMenuItem));
+	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(cpuMenuItem), TRUE);
+	
+	// getting info about installed CUDA-capable devices
+	
+	cudaGetDeviceCount(&devicesCount);
+	deviceProps = new cudaDeviceProp[devicesCount];
+	
+	for (int i=0; i<devicesCount; i++)
+	{
+		cudaGetDeviceProperties(&deviceProps[i], i);
+
+		GtkWidget *deviceMenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, deviceProps[i].name);
+		gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), deviceMenuItem);
+		g_signal_connect(deviceMenuItem, "activate", G_CALLBACK(menuitem_response), (gpointer)(i + 1));
+				
+		devicesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(deviceMenuItem));
+	}
 	
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(deviceMenuItem), deviceMenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), dummyDevice1MenuItem);
-	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), dummyDevice2MenuItem);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), deviceMenuItem);
 	
 	// "Palette" menu and radio buttons
@@ -222,7 +266,7 @@ int main(int argc, char *argv[])
 	// creating a drawing area
 	da = gtk_drawing_area_new();
 	g_signal_connect(da, "draw", G_CALLBACK(draw_cb), NULL);
-	g_signal_connect(da, "configure-event", G_CALLBACK(frame_callback), NULL);
+	g_signal_connect(da, "configure-event", G_CALLBACK(canvasFrameChanged), NULL);
 	
 	gtk_box_pack_start(GTK_BOX(vbox), da, TRUE, TRUE, 0);
 
