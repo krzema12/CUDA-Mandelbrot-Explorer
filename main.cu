@@ -17,6 +17,7 @@ typedef unsigned char byte;
 
 #define CPU	0
 
+GtkWidget *window;
 GtkWidget *da;
 GtkWidget *statusBar;
 GdkPixbuf *pixbuf;
@@ -158,6 +159,7 @@ void updateBuffer()
 	}
 	
 	timer.stop();
+	gtk_widget_queue_draw(da);
 	updateStatusBar(timer.getElapsedTimeInSec());
 }
 
@@ -177,7 +179,6 @@ void updateStatusBar(double time)
 	}
 		
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
-	gtk_widget_queue_draw(statusBar);
 }
 
 gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
@@ -222,6 +223,39 @@ void menuitem_response(GtkWidget *widget, int device)
 	}
 }
 
+void create_dialog(GtkWindow *window, char *title, char *message)
+{
+    GtkWidget *dialog, *label, *content_area;
+
+    /* New label for dialog content */
+    label = gtk_label_new(message);
+
+    /* Make a new dialog with an 'OK' button */
+    dialog = gtk_dialog_new_with_buttons(title, window, GTK_DIALOG_DESTROY_WITH_PARENT, GTK_STOCK_OK, GTK_RESPONSE_NONE, NULL);
+
+    /* Add label to dialog */
+    content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    gtk_container_add(GTK_CONTAINER(content_area), label);
+
+    /* Destroy dialog properly */
+    g_signal_connect(dialog, "response", G_CALLBACK(gtk_widget_destroy), dialog);
+
+    /* Set dialog to not resize. */
+    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+
+    gtk_widget_show_all(dialog);
+}
+
+void openUsageInfo(GtkWidget *widget)
+{
+	create_dialog((GtkWindow*)window, "Usage", "Arrow keys: moving the view up/down and left/right\nPlus\\minus keys: zooming in\\out\n\nQ\\A: increasing\\decreasing the number of iterations");
+}
+
+void openAboutWindow(GtkWidget *widget)
+{
+	create_dialog((GtkWindow*)window, "About", "Mandelbrot Explorer\nby Piotr Krzeminski, 131546\n\nThis application has been created as a project\nfor \"CUDA\\CELL processing\" university course.");
+}
+
 int amplify(int val)
 {
 	float floatVal = (float)val/255.0f;
@@ -230,36 +264,40 @@ int amplify(int val)
 	return (int)(amplified*255.0f);
 }
 
+void generatePalette(int paletteID)
+{
+	int arrayPos = 0;
+
+	// grayscale
+	if (paletteID == 0)
+	{
+		for (int i=0; i<511; i++)
+		{
+			currentPalette[arrayPos++] = 255 - amplify(i/2);
+			currentPalette[arrayPos++] = 255 - amplify(i/2);
+			currentPalette[arrayPos++] = 255 - amplify(i/2);
+		}
+	}
+	else if (paletteID == 1)
+	{
+		for (int i=0; i<510; i++)
+		{
+			currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
+			currentPalette[arrayPos++] = amplify(i <= 255 ? i : 255);
+			currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
+		}
+			
+		currentPalette[arrayPos++] = 0;
+		currentPalette[arrayPos++] = 0;
+		currentPalette[arrayPos++] = 0;			
+	}
+}
+
 void paletteChanged(GtkWidget *widget, int paletteID)
 {
 	if (paletteID != currentPaletteID)
 	{
-		int arrayPos = 0;
-		
-		// grayscale
-		if (paletteID == 0)
-		{
-			for (int i=0; i<511; i++)
-			{
-				currentPalette[arrayPos++] = 255 - amplify(i/2);
-				currentPalette[arrayPos++] = 255 - amplify(i/2);
-				currentPalette[arrayPos++] = 255 - amplify(i/2);
-			}
-		}
-		else if (paletteID == 1)
-		{
-			for (int i=0; i<510; i++)
-			{
-				currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
-				currentPalette[arrayPos++] = amplify(i <= 255 ? i : 255);
-				currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
-			}
-			
-			currentPalette[arrayPos++] = 0;
-			currentPalette[arrayPos++] = 0;
-			currentPalette[arrayPos++] = 0;			
-		}
-		
+		generatePalette(paletteID);		
 		currentPaletteID = paletteID;
 		updateBuffer();
 	}
@@ -310,25 +348,14 @@ int main(int argc, char *argv[])
 	// ----------------
 
 	currentPalette = new byte[512*3];
-	int arrayPos = 0;
-	
-	for (int i=0; i<510; i++)
-	{
-		currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
-		currentPalette[arrayPos++] = amplify(i <= 255 ? i : 255);
-		currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
-	}
-	
-	currentPalette[arrayPos++] = 0;
-	currentPalette[arrayPos++] = 0;
-	currentPalette[arrayPos++] = 0;		
+	generatePalette(1);	
 	
 	// ----------------
 
 	gtk_init(&argc, &argv);
 	
 	// creating a window
-	GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_default_size((GtkWindow*)window, WINDOW_WIDTH, WINDOW_HEIGHT);
 	gtk_window_set_title((GtkWindow*)window, "Mandelbrot Explorer");
 	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
@@ -397,7 +424,9 @@ int main(int argc, char *argv[])
 	
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(helpMenuItem), helpMenu);
 	gtk_menu_shell_append(GTK_MENU_SHELL(helpMenu), usageMenuItem);
+	g_signal_connect(usageMenuItem, "activate", G_CALLBACK(openUsageInfo), (gpointer)0);
 	gtk_menu_shell_append(GTK_MENU_SHELL(helpMenu), aboutMenuItem);
+	g_signal_connect(aboutMenuItem, "activate", G_CALLBACK(openAboutWindow), (gpointer)0);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), helpMenuItem);
 	
 	gtk_box_pack_start(GTK_BOX(vbox), menuBar, FALSE, FALSE, 0);
@@ -417,6 +446,8 @@ int main(int argc, char *argv[])
 
 	// the main loop
 	gtk_main();
+
+	
 
 	return 0;
 }
