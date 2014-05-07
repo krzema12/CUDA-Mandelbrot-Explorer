@@ -16,7 +16,7 @@ GdkPixbuf *pixbuf;
 
 byte *rawBuffer;
 
-double centerX = -0.4;
+double centerX = -0.6;
 double centerY = 0.0;
 double scale = 2.5;
 
@@ -59,7 +59,7 @@ void updateBuffer()
 				{
 					z = z*z + c;
 					
-					if (real(z)*real(z) + imag(z)*imag(z) > 2.0)
+					if (real(z)*real(z) + imag(z)*imag(z) > 4.0)
 						break;
 				}
 				
@@ -139,11 +139,11 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 			break;
 		case GDK_KEY_equal:
 		case GDK_KEY_KP_Add:
-			scale /= 1.05;
+			scale /= 1.1;
 			break;
 		case GDK_KEY_minus:
 		case GDK_KEY_KP_Subtract:
-			scale *= 1.05;
+			scale *= 1.1;
 			break;
 		case GDK_KEY_r:
 			setDefaultView();
@@ -180,13 +180,15 @@ int main(int argc, char *argv[])
 	// "Device" menu and radio buttons
 	GtkWidget *deviceMenuItem = gtk_menu_item_new_with_label("Device");
 	GSList *devicesRadioGroup = NULL;
+	GtkWidget *cpuMenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, "CPU");
+	devicesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(cpuMenuItem));
 	GtkWidget *dummyDevice1MenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, "Dummy device 1");
-	devicesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(dummyDevice1MenuItem));
 	GtkWidget *dummyDevice2MenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, "Dummy device 2");
 	// set "dummyDevice2MenuItem" to currently selected
-	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(dummyDevice2MenuItem), TRUE);
+	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(cpuMenuItem), TRUE);
 	
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(deviceMenuItem), deviceMenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), cpuMenuItem);
 	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), dummyDevice1MenuItem);
 	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), dummyDevice2MenuItem);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), deviceMenuItem);
