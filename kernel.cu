@@ -32,7 +32,14 @@ __global__ void mandelbrotPixel(byte *output, byte *palette, int width, int heig
 		
 	int bufferPos = (width*y + x)*3;
 		
-	output[bufferPos++] = palette[i*3];
-	output[bufferPos++] = palette[i*3 + 1];
-	output[bufferPos++] = palette[i*3 + 2];
+	int invert2 = -(x == width/2 || y == height/2);
+	int invert = 1 - ((x == width/2 || y == height/2)<<1); // if NO then 1, if YES then -1
+
+	output[bufferPos++] = (0xFF&invert2) + (invert*palette[i*3]);
+	output[bufferPos++] = (0xFF&invert2) + (invert*palette[i*3 + 1]);
+	output[bufferPos++] = (0xFF&invert2) + (invert*palette[i*3 + 2]);
+
+	//output[bufferPos++] = palette[i*3];
+	//output[bufferPos++] = palette[i*3 + 1];
+	//output[bufferPos++] = palette[i*3 + 2];
 }
