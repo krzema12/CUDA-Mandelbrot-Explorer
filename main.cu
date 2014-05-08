@@ -5,15 +5,13 @@
 #include <iomanip>
 #include <complex>
 #include <ctime>
-#include <cuda_runtime.h>
+#include "Common.h"
 #include "Timer.h"
+#include "WindowInit.h"
+#include "kernel.cuh"
 using namespace std;
-typedef unsigned char byte;
 
 // http://developer.download.nvidia.com/compute/cuda/4_1/rel/toolkit/docs/online/group__CUDART__DEVICE_g028e5b0474379eaf5f5d54657d48600b.html#g028e5b0474379eaf5f5d54657d48600b
-
-#define WINDOW_WIDTH  1024
-#define WINDOW_HEIGHT 768
 
 #define CPU	0
 
@@ -33,7 +31,7 @@ int currentPaletteID = 0;
 int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
 
-double centerX, centerY, scale;
+float centerX, centerY, scale;
 
 int bufferWidth = 640;
 int bufferHeight = 480;
@@ -45,9 +43,9 @@ void updateStatusBar(double time);
 
 void setDefaultView()
 {
-	centerX = -0.7;
-	centerY = 0.0;
-	scale = 3.0;
+	centerX = -0.7f;
+	centerY = 0.0f;
+	scale = 3.0f;
 }
 
 static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
@@ -57,43 +55,6 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 	cairo_fill(cr);
 
 	return FALSE;
-}
-
-__global__ void mandelbrotPixel(byte *output, byte *palette, int width, int height, float centerX, float centerY, float scale)
-{
-	int x = blockDim.x * blockIdx.x + threadIdx.x;
-	int y = blockDim.y * blockIdx.y + threadIdx.y;
-    
-	if ((x >= width) || (y >= height))
-		return;
-
-	float ratio = (float)width/(float)height;
-    	
-	float cReal, cImag;
-	cReal = (float)(x - width/2)*scale*ratio/(float)(width - 1) + centerX;
-	cImag = (float)(y - height/2)*scale/(float)(height - 1) + centerY;
-    
-	float zReal = 0.0f, zImag = 0.0, z2Real, z2Imag;
-	
-	int i;
-	
-	for (i = 0; i<510; i++)
-	{
-		z2Real = zReal*zReal - zImag*zImag + cReal;
-		z2Imag = 2.0f*zReal*zImag + cImag;
-		
-		zReal = z2Real;
-		zImag = z2Imag;
-		
-		if (zReal*zReal + zImag*zImag > 4.0f)
-			break;
-	}
-		
-	int bufferPos = (width*y + x)*3;
-		
-	output[bufferPos++] = palette[i*3];
-	output[bufferPos++] = palette[i*3 + 1];
-	output[bufferPos++] = palette[i*3 + 2];
 }
 
 void updateBuffer()
@@ -117,9 +78,9 @@ void updateBuffer()
 				int i = 510;
 			
 				// checking if we're in the cardioid
-				double q = (real(c) - 0.25)*(real(c) - 0.25) + imag(c)*imag(c);
+				//double q = (real(c) - 0.25)*(real(c) - 0.25) + imag(c)*imag(c);
 			
-				if ((q*(q + (real(c) - 0.25)) >= 0.25*imag(c)*imag(c)) && ((real(c) + 1)*(real(c) + 1) + imag(c)*imag(c) >= 0.0625))
+				//if ((q*(q + (real(c) - 0.25)) >= 0.25*imag(c)*imag(c)) && ((real(c) + 1)*(real(c) + 1) + imag(c)*imag(c) >= 0.0625))
 				{
 					for (i=0; i<510; i++)
 					{
@@ -215,9 +176,7 @@ void menuitem_response(GtkWidget *widget, int device)
 		currentDevice = device;
 	
 		if (device != CPU)
-		{
 			cudaSetDevice(device - 1);
-		}
 
 		updateBuffer();
 	}
@@ -246,14 +205,12 @@ void create_dialog(GtkWindow *window, char *title, char *message)
     gtk_widget_show_all(dialog);
 }
 
-void openUsageInfo(GtkWidget *widget)
+void openHelp(GtkWidget *widget, int whichWindow)
 {
-	create_dialog((GtkWindow*)window, "Usage", "Arrow keys: moving the view up/down and left/right\nPlus\\minus keys: zooming in\\out\n\nQ\\A: increasing\\decreasing the number of iterations");
-}
-
-void openAboutWindow(GtkWidget *widget)
-{
-	create_dialog((GtkWindow*)window, "About", "Mandelbrot Explorer\nby Piotr Krzeminski, 131546\n\nThis application has been created as a project\nfor \"CUDA\\CELL processing\" university course.");
+	if (whichWindow == 0)
+		create_dialog((GtkWindow*)window, "Usage", "Arrow keys: moving the view up/down and left/right\nPlus\\minus keys: zooming in\\out\n\nQ\\A: increasing\\decreasing the number of iterations");
+	else
+		create_dialog((GtkWindow*)window, "About", "Mandelbrot Explorer\nby Piotr Krzeminski, 131546\n\nThis application has been created as a project\nfor \"CUDA\\CELL processing\" university course.");
 }
 
 int amplify(int val)
@@ -308,24 +265,24 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 	switch (event->keyval)
 	{
 		case GDK_KEY_Left:
-			centerX -= 0.05*scale;
+			centerX -= 0.05f*scale;
 			break;
 		case GDK_KEY_Right:
-			centerX += 0.05*scale;
+			centerX += 0.05f*scale;
 			break;
 		case GDK_KEY_Up:
-			centerY -= 0.05*scale;
+			centerY -= 0.05f*scale;
 			break;
 		case GDK_KEY_Down:
-			centerY += 0.05*scale;
+			centerY += 0.05f*scale;
 			break;
 		case GDK_KEY_equal:
 		case GDK_KEY_KP_Add:
-			scale /= 1.1;
+			scale /= 1.1f;
 			break;
 		case GDK_KEY_minus:
 		case GDK_KEY_KP_Subtract:
-			scale *= 1.1;
+			scale *= 1.1f;
 			break;
 		case GDK_KEY_r:
 			setDefaultView();
@@ -335,119 +292,54 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 	}
 	
 	updateBuffer();
-
 	gtk_widget_queue_draw(da);
 	
 	return FALSE;
 }
 
-int main(int argc, char *argv[])
+void initWindow()
 {
-	setDefaultView();
-	
-	// ----------------
-
-	currentPalette = new byte[512*3];
-	generatePalette(1);	
-	
-	// ----------------
-
-	gtk_init(&argc, &argv);
-	
 	// creating a window
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_default_size((GtkWindow*)window, WINDOW_WIDTH, WINDOW_HEIGHT);
-	gtk_window_set_title((GtkWindow*)window, "Mandelbrot Explorer");
-	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	g_signal_connect(window, "key_press_event", G_CALLBACK(onKeyPress), NULL);
+	window = createWindow(G_CALLBACK(onKeyPress));
 	
-	// creating the main menu
-	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-	gtk_container_add(GTK_CONTAINER(window), vbox);
-	
+	// creating a main menu
 	GtkWidget *menuBar = gtk_menu_bar_new();
-	GtkWidget *deviceMenu = gtk_menu_new();
-	
-	// "Device" menu and radio buttons
-	GtkWidget *deviceMenuItem = gtk_menu_item_new_with_label("Device");
-	GSList *devicesRadioGroup = NULL;
-	
-	GtkWidget *cpuMenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, "CPU");
-	gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), cpuMenuItem);
-	g_signal_connect(cpuMenuItem, "activate", G_CALLBACK(menuitem_response), (gpointer)0);
-	devicesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(cpuMenuItem));
-	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(cpuMenuItem), TRUE);
-	
-	// getting info about installed CUDA-capable devices
-	
-	cudaGetDeviceCount(&devicesCount);
-	deviceProps = new cudaDeviceProp[devicesCount];
-	
-	for (int i=0; i<devicesCount; i++)
-	{
-		cudaGetDeviceProperties(&deviceProps[i], i);
 
-		GtkWidget *deviceMenuItem = gtk_radio_menu_item_new_with_label(devicesRadioGroup, deviceProps[i].name);
-		gtk_menu_shell_append(GTK_MENU_SHELL(deviceMenu), deviceMenuItem);
-		g_signal_connect(deviceMenuItem, "activate", G_CALLBACK(menuitem_response), (gpointer)(i + 1));
-				
-		devicesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(deviceMenuItem));
-	}
-	
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(deviceMenuItem), deviceMenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), deviceMenuItem);
-	
-	// "Palette" menu and radio buttons
-	GtkWidget *paletteMenu = gtk_menu_new();
-	GtkWidget *paletteMenuItem = gtk_menu_item_new_with_label("Palette");
-	GSList *palettesRadioGroup = NULL;
-	GtkWidget *grayscaleMenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Grayscale");
-	
-	palettesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(grayscaleMenuItem));
-	GtkWidget *blackGreenWhiteMenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Black-green-white");
-	
-	// set "Black-green-white" as currently selected
-	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(blackGreenWhiteMenuItem), TRUE);
-	
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(paletteMenuItem), paletteMenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), grayscaleMenuItem);
-	g_signal_connect(grayscaleMenuItem, "activate", G_CALLBACK(paletteChanged), (gpointer)0);
-	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), blackGreenWhiteMenuItem);
-	g_signal_connect(blackGreenWhiteMenuItem, "activate", G_CALLBACK(paletteChanged), (gpointer)1);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), paletteMenuItem);
-	
-	// "Help" menu
-	GtkWidget *helpMenu = gtk_menu_new();
-	GtkWidget *helpMenuItem = gtk_menu_item_new_with_label("Help");
-	GtkWidget *usageMenuItem = gtk_menu_item_new_with_label("Usage");
-	GtkWidget *aboutMenuItem = gtk_menu_item_new_with_label("About");
-	
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(helpMenuItem), helpMenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(helpMenu), usageMenuItem);
-	g_signal_connect(usageMenuItem, "activate", G_CALLBACK(openUsageInfo), (gpointer)0);
-	gtk_menu_shell_append(GTK_MENU_SHELL(helpMenu), aboutMenuItem);
-	g_signal_connect(aboutMenuItem, "activate", G_CALLBACK(openAboutWindow), (gpointer)0);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), helpMenuItem);
-	
-	gtk_box_pack_start(GTK_BOX(vbox), menuBar, FALSE, FALSE, 0);
+	// adding subsequent submenus
+	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createDeviceMenu(G_CALLBACK(menuitem_response)));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createPaletteMenu(G_CALLBACK(paletteChanged)));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createHelpMenu(G_CALLBACK(openHelp)));
 	
 	// creating a drawing area
-	da = gtk_drawing_area_new();
-	g_signal_connect(da, "draw", G_CALLBACK(draw_cb), NULL);
-	g_signal_connect(da, "configure-event", G_CALLBACK(canvasFrameChanged), NULL);
+	da = createDrawingArea(G_CALLBACK(draw_cb), G_CALLBACK(canvasFrameChanged));
 	
-	gtk_box_pack_start(GTK_BOX(vbox), da, TRUE, TRUE, 0);
-
 	// creating a status bar
 	statusBar = gtk_statusbar_new();
+
+	// adding all the elements to the window, stacked vertically
+	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_container_add(GTK_CONTAINER(window), vbox);
+	gtk_box_pack_start(GTK_BOX(vbox), menuBar, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), da, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), statusBar, FALSE, FALSE, 3);
 	
+	// displaying the window
 	gtk_widget_show_all(window);
+}
+
+int main(int argc, char *argv[])
+{
+	gtk_init(&argc, &argv);
+
+	// setting initial values
+	setDefaultView();
+	currentPalette = new byte[512*3];
+	generatePalette(1);
+	
+	initWindow();
 
 	// the main loop
 	gtk_main();
-
-	
 
 	return 0;
 }

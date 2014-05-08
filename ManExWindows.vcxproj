@@ -19,13 +19,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
     <CudaCompile Include="main.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Timer.cpp" />
+    <ClCompile Include="WindowInit.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Common.h" />
+    <ClInclude Include="kernel.cuh" />
     <ClInclude Include="Timer.h" />
+    <ClInclude Include="WindowInit.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1CDD6ECE-D716-4907-A736-FE9EDEAE33E9}</ProjectGuid>
