@@ -111,7 +111,7 @@ void updateBuffer()
 		
 		//cudaError_t err = cudaSuccess; 
 		//err = cudaGetLastError();
-		//cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err);
+		//cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err) << endl;
 		
 		cudaMemcpy(rawBuffer, deviceBuffer, bufferWidth*bufferHeight*3, cudaMemcpyDeviceToHost);
 	}
@@ -193,16 +193,14 @@ void menuitem_response(GtkWidget *widget, int device)
 		if (device != CPU)
 		{
 			cudaSetDevice(device - 1);
-
-			// frame buffer
+		
 			if (deviceBuffer != 0)
 				cudaFree(deviceBuffer);
-			
-			cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
-
-			// palette buffer
+				
 			if (devicePalette != NULL)
 				cudaFree(devicePalette);
+				
+			cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
 
 			cudaMalloc((void**)&devicePalette, (iterations + 2)*3);
 			cudaMemcpy(devicePalette, currentPalette, (iterations + 2)*3, cudaMemcpyHostToDevice);

@@ -6,7 +6,7 @@
 
 typedef unsigned char byte;
 
-const int blockWidth = 8;
-const int blockHeight = 8;
+const int blockWidth = 22;
+const int blockHeight = 22;
 
 #endif
