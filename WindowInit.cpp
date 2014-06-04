@@ -60,6 +60,9 @@ GtkWidget* createPaletteMenu(GCallback paletteChanged)
 	
 	palettesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(grayscaleMenuItem));
 	GtkWidget *blackGreenWhiteMenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Black-green-white");
+
+	palettesRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(grayscaleMenuItem));
+	GtkWidget *blackWhiteAlternatingMenuItem = gtk_radio_menu_item_new_with_label(palettesRadioGroup, "Black-white, alternating");
 	
 	// set "Black-green-white" as currently selected
 	gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(blackGreenWhiteMenuItem), TRUE);
@@ -69,8 +72,34 @@ GtkWidget* createPaletteMenu(GCallback paletteChanged)
 	g_signal_connect(grayscaleMenuItem, "activate", G_CALLBACK(paletteChanged), (gpointer)0);
 	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), blackGreenWhiteMenuItem);
 	g_signal_connect(blackGreenWhiteMenuItem, "activate", G_CALLBACK(paletteChanged), (gpointer)1);
+	gtk_menu_shell_append(GTK_MENU_SHELL(paletteMenu), blackWhiteAlternatingMenuItem);
+	g_signal_connect(blackWhiteAlternatingMenuItem, "activate", G_CALLBACK(paletteChanged), (gpointer)2);
 
 	return paletteMenuItem;
+}
+
+GtkWidget* createAntialiasingMenu(GCallback antialiasingChanged)
+{
+	GtkWidget *antialiasingMenu = gtk_menu_new();
+	GtkWidget *antialiasingMenuItem = gtk_menu_item_new_with_label("Anti-aliasing");
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(antialiasingMenuItem), antialiasingMenu);
+
+	GSList *antialiasingRadioGroup = NULL;
+	GtkWidget *aaNoneMenuItem = gtk_radio_menu_item_new_with_label(antialiasingRadioGroup, "None");
+	gtk_menu_shell_append(GTK_MENU_SHELL(antialiasingMenu), aaNoneMenuItem);
+	g_signal_connect(aaNoneMenuItem, "activate", G_CALLBACK(antialiasingChanged), (gpointer)1);
+
+	antialiasingRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(aaNoneMenuItem));
+	GtkWidget *aa2x2MenuItem = gtk_radio_menu_item_new_with_label(antialiasingRadioGroup, "2x2");
+	gtk_menu_shell_append(GTK_MENU_SHELL(antialiasingMenu), aa2x2MenuItem);
+	g_signal_connect(aa2x2MenuItem, "activate", G_CALLBACK(antialiasingChanged), (gpointer)2);
+
+	antialiasingRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(aa2x2MenuItem));
+	GtkWidget *aa3x3MenuItem = gtk_radio_menu_item_new_with_label(antialiasingRadioGroup, "4x4");
+	gtk_menu_shell_append(GTK_MENU_SHELL(antialiasingMenu), aa3x3MenuItem);
+	g_signal_connect(aa3x3MenuItem, "activate", G_CALLBACK(antialiasingChanged), (gpointer)4);
+
+	return antialiasingMenuItem;
 }
 
 GtkWidget* createHelpMenu(GCallback openHelp)

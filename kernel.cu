@@ -25,8 +25,7 @@ __global__ void mandelbrotPixel(byte *output, byte *palette, int width, int heig
 	int doneMask = 0;
 	int itersIsEmptyMask = 0;
 #endif
-	
-#pragma unroll
+
 	for (i = 0; i<iterations; i++)
 	{
 		z2Real = zReal*zReal - zImag*zImag + cReal;

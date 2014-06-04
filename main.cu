@@ -37,6 +37,9 @@ int iterations = 512;
 int bufferWidth = 640;
 int bufferHeight = 480;
 
+int viewportWidth, viewportHeight;
+int supersampling = 1;
+
 int lastCanvasWidth = 0;
 int lastCanvasHeight = 0;
 
@@ -51,9 +54,10 @@ void setDefaultView()
 
 static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 {   
+	cairo_set_antialias(cr, CAIRO_ANTIALIAS_GRAY);
+	cairo_scale(cr, 1.0/(double)supersampling, 1.0/(double)supersampling);
 	gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
 	cairo_paint(cr);
-	cairo_fill(cr);
 
 	return FALSE;
 }
@@ -121,7 +125,7 @@ void updateStatusBar(double time)
 {
 	ostringstream newStatus;
 	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: "
-		<< noshowpos << scale << "   Iterations: " << iterations << "   Viewport: " << bufferWidth << "x" << bufferHeight << "   Time: " << time << " ms   |   ";
+		<< noshowpos << scale << "   Iterations: " << iterations << "   Buffer: " << bufferWidth << "x" << bufferHeight << "   Time: " << time << " ms   |   ";
 	
 	if (currentDevice == 0)
 		newStatus << "CPU";
@@ -135,34 +139,41 @@ void updateStatusBar(double time)
 	gtk_statusbar_push(GTK_STATUSBAR(statusBar), 0, newStatus.str().c_str());
 }
 
+void reallocateFrameBuffer()
+{
+	bufferWidth = viewportWidth*supersampling;
+	bufferHeight = viewportHeight*supersampling;
+
+	// reallocating local frame buffer
+	delete[] rawBuffer;
+		
+	if (pixbuf != NULL)
+		g_object_unref(pixbuf);
+
+	rawBuffer = new byte[bufferWidth*bufferHeight*3];
+	pixbuf = gdk_pixbuf_new_from_data(rawBuffer, GDK_COLORSPACE_RGB,
+		FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);
+
+	// (re)allocating CUDA device's frame buffer
+
+	if (currentDevice != CPU)
+	{
+		if (deviceBuffer != 0)
+			cudaFree(deviceBuffer);
+			
+		cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
+	}
+}
+
 gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
 {
 	if (lastCanvasWidth != event->configure.width ||
 		lastCanvasHeight != event->configure.height)
 	{
-		// reallocating local frame buffer
-		delete[] rawBuffer;
-		
-		if (pixbuf != NULL)
-			g_object_unref(pixbuf);
-		
-		bufferWidth = event->configure.width;
-		bufferHeight = event->configure.height;
-		
-		rawBuffer = new byte[bufferWidth*bufferHeight*3];
-		pixbuf = gdk_pixbuf_new_from_data(rawBuffer, GDK_COLORSPACE_RGB,
-			FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);
+		viewportWidth = event->configure.width;
+		viewportHeight = event->configure.height;
 
-		// (re)allocating CUDA device's frame buffer
-
-		if (currentDevice != CPU)
-		{
-			if (deviceBuffer != 0)
-				cudaFree(deviceBuffer);
-			
-			cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
-		}
-
+		reallocateFrameBuffer();
 		updateBuffer();
 	
 		lastCanvasWidth = event->configure.width;
@@ -272,6 +283,19 @@ void generatePalette(int paletteID)
 		currentPalette[arrayPos++] = 0;
 		currentPalette[arrayPos++] = 0;			
 	}
+	else if (paletteID == 2)
+	{
+		for (int i=0; i<iterations; i++)
+		{
+			currentPalette[arrayPos++] = 255 - (i&1)*255;
+			currentPalette[arrayPos++] = 255 - (i&1)*255;
+			currentPalette[arrayPos++] = 255 - (i&1)*255;
+		}
+
+		currentPalette[arrayPos++] = 128;
+		currentPalette[arrayPos++] = 128;
+		currentPalette[arrayPos++] = 128;		
+	}
 
 	if (currentDevice != CPU)
 	{
@@ -290,6 +314,16 @@ void paletteChanged(GtkWidget *widget, int paletteID)
 	if (paletteID != currentPaletteID)
 	{
 		generatePalette(paletteID);
+		updateBuffer();
+	}
+}
+
+void antialiasingChanged(GtkWidget *widget, int aaID)
+{
+	if (aaID != supersampling)
+	{
+		supersampling = aaID;
+		reallocateFrameBuffer();
 		updateBuffer();
 	}
 }
@@ -358,6 +392,7 @@ void initWindow()
 	// adding subsequent submenus
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createDeviceMenu(G_CALLBACK(menuitem_response)));
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createPaletteMenu(G_CALLBACK(paletteChanged)));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createAntialiasingMenu(G_CALLBACK(antialiasingChanged)));
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createHelpMenu(G_CALLBACK(openHelp)));
 	
 	// creating a drawing area

@@ -10,6 +10,7 @@
 GtkWidget* createWindow(GCallback onKeyPressCallback);
 GtkWidget* createDeviceMenu(GCallback menuitem_response);
 GtkWidget* createPaletteMenu(GCallback paletteChanged);
+GtkWidget* createAntialiasingMenu(GCallback antialiasingChanged);
 GtkWidget* createHelpMenu(GCallback openHelp);
 GtkWidget* createDrawingArea(GCallback redrawCallback, GCallback canvasFrameChanged);
 
