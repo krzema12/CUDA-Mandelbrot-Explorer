@@ -32,6 +32,7 @@ int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
 
 float centerX, centerY, scale;
+int iterations = 512;
 
 int bufferWidth = 640;
 int bufferHeight = 480;
@@ -82,7 +83,7 @@ void updateBuffer()
 			
 				//if ((q*(q + (real(c) - 0.25)) >= 0.25*imag(c)*imag(c)) && ((real(c) + 1)*(real(c) + 1) + imag(c)*imag(c) >= 0.0625))
 				{
-					for (i=0; i<510; i++)
+					for (i=0; i<iterations; i++)
 					{
 						z = z*z + c;
 					
@@ -98,19 +99,11 @@ void updateBuffer()
 		}
 	}
 	else
-	{
-		if (deviceBuffer != 0)
-			cudaFree(deviceBuffer);
-			
-		cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
-		cudaMalloc((void**)&devicePalette, 512*3);
-		
-		cudaMemcpy(devicePalette, currentPalette, 512*3, cudaMemcpyHostToDevice);
-		
+	{		
 		dim3 threads(8, 8);
 		dim3 grid((bufferWidth + 7)/8, (bufferHeight + 7)/8);
-	
-		mandelbrotPixel<<<grid, threads>>>(deviceBuffer, devicePalette, bufferWidth, bufferHeight, centerX, centerY, scale);
+
+		mandelbrotPixel<<<grid, threads>>>(deviceBuffer, devicePalette, bufferWidth, bufferHeight, centerX, centerY, scale, iterations);
 		
 		//cudaError_t err = cudaSuccess; 
 		//err = cudaGetLastError();
@@ -128,7 +121,7 @@ void updateStatusBar(double time)
 {
 	ostringstream newStatus;
 	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: "
-		<< noshowpos << scale << "   Time: " << time << " ms   |   ";
+		<< noshowpos << scale << "   Iterations: " << iterations << "   Viewport: " << bufferWidth << "x" << bufferHeight << "   Time: " << time << " ms   |   ";
 	
 	if (currentDevice == 0)
 		newStatus << "CPU";
@@ -147,6 +140,7 @@ gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
 	if (lastCanvasWidth != event->configure.width ||
 		lastCanvasHeight != event->configure.height)
 	{
+		// reallocating local frame buffer
 		delete[] rawBuffer;
 		
 		if (pixbuf != NULL)
@@ -157,7 +151,17 @@ gboolean canvasFrameChanged(GtkWindow *window, GdkEvent *event, gpointer data)
 		
 		rawBuffer = new byte[bufferWidth*bufferHeight*3];
 		pixbuf = gdk_pixbuf_new_from_data(rawBuffer, GDK_COLORSPACE_RGB,
-			FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);			
+			FALSE, 8, bufferWidth, bufferHeight, bufferWidth*3, NULL, NULL);
+
+		// (re)allocating CUDA device's frame buffer
+
+		if (currentDevice != CPU)
+		{
+			if (deviceBuffer != 0)
+				cudaFree(deviceBuffer);
+			
+			cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
+		}
 
 		updateBuffer();
 	
@@ -176,7 +180,22 @@ void menuitem_response(GtkWidget *widget, int device)
 		currentDevice = device;
 	
 		if (device != CPU)
+		{
 			cudaSetDevice(device - 1);
+
+			// frame buffer
+			if (deviceBuffer != 0)
+				cudaFree(deviceBuffer);
+			
+			cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
+
+			// palette buffer
+			if (devicePalette != NULL)
+				cudaFree(devicePalette);
+
+			cudaMalloc((void**)&devicePalette, (iterations + 2)*3);
+			cudaMemcpy(devicePalette, currentPalette, (iterations + 2)*3, cudaMemcpyHostToDevice);
+		}
 
 		updateBuffer();
 	}
@@ -208,7 +227,7 @@ void create_dialog(GtkWindow *window, char *title, char *message)
 void openHelp(GtkWidget *widget, int whichWindow)
 {
 	if (whichWindow == 0)
-		create_dialog((GtkWindow*)window, "Usage", "Arrow keys: moving the view up/down and left/right\nPlus\\minus keys: zooming in\\out\n\nQ\\A: increasing\\decreasing the number of iterations");
+		create_dialog((GtkWindow*)window, "Usage", "Arrow keys: moving the view up/down and left/right\nPlus\\minus keys: zooming in\\out\n\nQ\\A: increasing\\decreasing the number of iterations\nW\\S: increasing\\decreasing the number of iterations by 100");
 	else
 		create_dialog((GtkWindow*)window, "About", "Mandelbrot Explorer\nby Piotr Krzeminski, 131546\n\nThis application has been created as a project\nfor \"CUDA\\CELL processing\" university course.");
 }
@@ -223,39 +242,54 @@ int amplify(int val)
 
 void generatePalette(int paletteID)
 {
+	if (currentPalette != NULL)
+		delete[] currentPalette;
+
+	currentPalette = new byte[(iterations + 2)*3];
+
 	int arrayPos = 0;
 
 	// grayscale
 	if (paletteID == 0)
 	{
-		for (int i=0; i<511; i++)
+		for (int i=0; i<=iterations; i++)
 		{
-			currentPalette[arrayPos++] = 255 - amplify(i/2);
-			currentPalette[arrayPos++] = 255 - amplify(i/2);
-			currentPalette[arrayPos++] = 255 - amplify(i/2);
+			currentPalette[arrayPos++] = 255 - amplify(i*255/iterations);
+			currentPalette[arrayPos++] = 255 - amplify(i*255/iterations);
+			currentPalette[arrayPos++] = 255 - amplify(i*255/iterations);
 		}
 	}
 	else if (paletteID == 1)
 	{
-		for (int i=0; i<510; i++)
+		for (int i=0; i<iterations; i++)
 		{
-			currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
-			currentPalette[arrayPos++] = amplify(i <= 255 ? i : 255);
-			currentPalette[arrayPos++] = amplify(i <= 255 ? 0 : i - 256);
+			currentPalette[arrayPos++] = amplify(i <= iterations/2 ? 0 : (i - iterations/2)*2*255/iterations);
+			currentPalette[arrayPos++] = amplify(i <= iterations/2 ? i*2*255/iterations : 255);
+			currentPalette[arrayPos++] = amplify(i <= iterations/2 ? 0 : (i - iterations/2)*2*255/iterations);
 		}
 			
 		currentPalette[arrayPos++] = 0;
 		currentPalette[arrayPos++] = 0;
 		currentPalette[arrayPos++] = 0;			
 	}
+
+	if (currentDevice != CPU)
+	{
+		if (devicePalette != NULL)
+			cudaFree(devicePalette);
+
+		cudaMalloc((void**)&devicePalette, (iterations + 2)*3);
+		cudaMemcpy(devicePalette, currentPalette, (iterations + 2)*3, cudaMemcpyHostToDevice);
+	}
+
+	currentPaletteID = paletteID;
 }
 
 void paletteChanged(GtkWidget *widget, int paletteID)
 {
 	if (paletteID != currentPaletteID)
 	{
-		generatePalette(paletteID);		
-		currentPaletteID = paletteID;
+		generatePalette(paletteID);
 		updateBuffer();
 	}
 }
@@ -286,6 +320,22 @@ gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 			break;
 		case GDK_KEY_r:
 			setDefaultView();
+			break;
+		case GDK_KEY_q:
+			iterations++;
+			generatePalette(currentPaletteID);
+			break;
+		case GDK_KEY_a:
+			iterations = max(1, iterations - 1);
+			generatePalette(currentPaletteID);
+			break;
+		case GDK_KEY_w:
+			iterations += 100;
+			generatePalette(currentPaletteID);
+			break;
+		case GDK_KEY_s:
+			iterations = max(1, iterations - 100);
+			generatePalette(currentPaletteID);
 			break;
 		default:
 			return FALSE;
@@ -333,7 +383,6 @@ int main(int argc, char *argv[])
 
 	// setting initial values
 	setDefaultView();
-	currentPalette = new byte[512*3];
 	generatePalette(1);
 	
 	initWindow();

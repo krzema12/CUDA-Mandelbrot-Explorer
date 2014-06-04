@@ -1,6 +1,6 @@
 #include "kernel.cuh"
 
-__global__ void mandelbrotPixel(byte *output, byte *palette, int width, int height, float centerX, float centerY, float scale)
+__global__ void mandelbrotPixel(byte *output, byte *palette, int width, int height, float centerX, float centerY, float scale, int iterations)
 {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
 	int y = blockDim.y * blockIdx.y + threadIdx.y;
@@ -18,7 +18,7 @@ __global__ void mandelbrotPixel(byte *output, byte *palette, int width, int heig
 	
 	int i;
 	
-	for (i = 0; i<510; i++)
+	for (i = 0; i<iterations; i++)
 	{
 		z2Real = zReal*zReal - zImag*zImag + cReal;
 		z2Imag = 2.0f*zReal*zImag + cImag;
