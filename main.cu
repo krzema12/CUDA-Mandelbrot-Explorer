@@ -120,7 +120,7 @@ void updateBuffer()
 		
 		//cudaError_t err = cudaSuccess; 
 		//err = cudaGetLastError();
-		//cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err);
+		//cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err) << endl;
 		
 		cudaMemcpy(rawBuffer, deviceBuffer, bufferWidth*bufferHeight*3, cudaMemcpyDeviceToHost);
 	}
@@ -204,16 +204,14 @@ void menuitem_response(GtkWidget *widget, int device)
 		if (device != CPU)
 		{
 			cudaSetDevice(device - 1);
-
-			// frame buffer
+		
 			if (deviceBuffer != 0)
 				cudaFree(deviceBuffer);
-			
-			cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
-
-			// palette buffer
+				
 			if (devicePalette != NULL)
 				cudaFree(devicePalette);
+				
+			cudaMalloc((void**)&deviceBuffer, bufferWidth*bufferHeight*3);
 
 			cudaMalloc((void**)&devicePalette, (iterations + 2)*3);
 			cudaMemcpy(devicePalette, currentPalette, (iterations + 2)*3, cudaMemcpyHostToDevice);
@@ -248,7 +246,7 @@ void create_dialog(GtkWindow *window, char *title, char *message)
 
 void openHelp(GtkWidget *widget, int whichWindow)
 {
-	ofstream outfile;
+	/*ofstream outfile;
 	outfile.open("measurements.txt", std::ios_base::out);
 
 	for(int y=1; y<=25; y++)
@@ -279,7 +277,7 @@ void openHelp(GtkWidget *widget, int whichWindow)
 		}
 
 		outfile << endl;
-	}
+	}*/
 
 
 	if (whichWindow == 0)
