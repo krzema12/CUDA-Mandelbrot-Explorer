@@ -100,8 +100,8 @@ void updateBuffer()
 	}
 	else
 	{		
-		dim3 threads(8, 8);
-		dim3 grid((bufferWidth + 7)/8, (bufferHeight + 7)/8);
+		dim3 threads(blockWidth, blockHeight);
+		dim3 grid((bufferWidth + (blockWidth - 1))/blockWidth, (bufferHeight + (blockHeight - 1))/blockHeight);
 
 		mandelbrotPixel<<<grid, threads>>>(deviceBuffer, devicePalette, bufferWidth, bufferHeight, centerX, centerY, scale, iterations);
 		
