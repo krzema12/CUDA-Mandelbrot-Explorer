@@ -31,8 +31,8 @@ byte *devicePalette;
 
 int currentPaletteID = 0;
 
-int blockWidth = 8;
-int blockHeight = 8;
+int blockWidth = 16;
+int blockHeight = 16;
 
 int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
@@ -48,6 +48,8 @@ int supersampling = 1;
 
 int lastCanvasWidth = 0;
 int lastCanvasHeight = 0;
+
+bool initDone = false;
 
 // TEMP
 double globalTime;
@@ -136,7 +138,7 @@ void updateStatusBar(double time)
 
 	ostringstream newStatus;
 	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: "
-		<< noshowpos << scale << "   Iterations: " << iterations << "   Buffer: " << bufferWidth << "x" << bufferHeight << "   Time: " << time << " ms   |   ";
+		<< noshowpos << scale << "   Iterations: " << iterations << "   Buffer: " << bufferWidth << "x" << bufferHeight << "   Time: " << time << " s   |   ";
 	
 	if (currentDevice == 0)
 		newStatus << "CPU";
@@ -246,14 +248,14 @@ void create_dialog(GtkWindow *window, char *title, char *message)
 
 void openHelp(GtkWidget *widget, int whichWindow)
 {
-	/*ofstream outfile;
+	ofstream outfile;
 	outfile.open("measurements.txt", std::ios_base::out);
 
-	for(int y=1; y<=25; y++)
+	for(int y=1; y<=40; y++)
 	{
 		blockHeight = y;
 
-		for(int x=1; x<=25; x++)
+		for(int x=1; x<=40; x++)
 		{
 			if (x*y > 512)
 			{
@@ -263,21 +265,22 @@ void openHelp(GtkWidget *widget, int whichWindow)
 
 			blockWidth = x;
 
-			vector<double> times;
+			double sum = 0.0;
 
 			for (int i=0; i<50; i++)
 			{
 				updateBuffer();
-				times.push_back(globalTime);
+				sum += globalTime;
 			}
 
-			nth_element(times.begin(), times.begin() + 5, times.end());
-			outfile << times[5] << "\t";
-			cerr << x << ", " << y << " -> " << times[5] << endl;
+			double avgTime = sum/50.0;
+
+			outfile << avgTime << "\t";
+			cerr << x << ", " << y << " -> " << avgTime << endl;
 		}
 
 		outfile << endl;
-	}*/
+	}
 
 
 	if (whichWindow == 0)
@@ -371,6 +374,15 @@ void antialiasingChanged(GtkWidget *widget, int aaID)
 	}
 }
 
+void blockSizeChanged(GtkWidget *widget, int blockSize)
+{
+	if (blockWidth != blockSize && initDone == true)
+	{
+		blockWidth = blockHeight = blockSize;
+		updateBuffer();
+	}
+}
+
 gboolean onKeyPress(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
 	switch (event->keyval)
@@ -436,6 +448,7 @@ void initWindow()
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createDeviceMenu(G_CALLBACK(menuitem_response)));
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createPaletteMenu(G_CALLBACK(paletteChanged)));
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createAntialiasingMenu(G_CALLBACK(antialiasingChanged)));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createBlockSizeMenu(G_CALLBACK(blockSizeChanged)));
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createHelpMenu(G_CALLBACK(openHelp)));
 	
 	// creating a drawing area
@@ -464,6 +477,7 @@ int main(int argc, char *argv[])
 	generatePalette(1);
 	
 	initWindow();
+	initDone = true;
 
 	// the main loop
 	gtk_main();

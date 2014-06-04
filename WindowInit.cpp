@@ -102,6 +102,34 @@ GtkWidget* createAntialiasingMenu(GCallback antialiasingChanged)
 	return antialiasingMenuItem;
 }
 
+GtkWidget* createBlockSizeMenu(GCallback blockSizeChanged)
+{
+	GtkWidget *blockSizeMenu = gtk_menu_new();
+	
+	// "Device" menu and radio buttons
+	GtkWidget *blockSizeMenuItem = gtk_menu_item_new_with_label("Block size");
+	GSList *blockSizeRadioGroup = NULL;
+
+	char number[6];
+
+	for (int i=1; i<=22; i++)
+	{
+		sprintf(number, "%dx%d", i, i);
+		GtkWidget *blockMenuItem = gtk_radio_menu_item_new_with_label(blockSizeRadioGroup, number);
+		gtk_menu_shell_append(GTK_MENU_SHELL(blockSizeMenu), blockMenuItem);
+		g_signal_connect(blockMenuItem, "activate", G_CALLBACK(blockSizeChanged), (gpointer)i);
+		
+		blockSizeRadioGroup = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(blockMenuItem));
+
+		if (i == 16)
+			gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(blockMenuItem), TRUE);
+	}
+	
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(blockSizeMenuItem), blockSizeMenu);
+
+	return blockSizeMenuItem;
+}
+
 GtkWidget* createHelpMenu(GCallback openHelp)
 {
 	GtkWidget *helpMenu = gtk_menu_new();
