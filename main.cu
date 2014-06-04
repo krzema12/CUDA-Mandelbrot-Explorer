@@ -5,6 +5,9 @@
 #include <iomanip>
 #include <complex>
 #include <ctime>
+#include <fstream>
+#include <vector>
+#include <algorithm>
 #include "Common.h"
 #include "Timer.h"
 #include "WindowInit.h"
@@ -28,6 +31,9 @@ byte *devicePalette;
 
 int currentPaletteID = 0;
 
+int blockWidth = 8;
+int blockHeight = 8;
+
 int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
 
@@ -42,6 +48,9 @@ int supersampling = 1;
 
 int lastCanvasWidth = 0;
 int lastCanvasHeight = 0;
+
+// TEMP
+double globalTime;
 
 void updateStatusBar(double time);
 
@@ -123,6 +132,8 @@ void updateBuffer()
 
 void updateStatusBar(double time)
 {
+	globalTime = time;
+
 	ostringstream newStatus;
 	newStatus << fixed << setprecision(5) << "Center: " << centerX << " " << showpos << centerY << "i   Scale: "
 		<< noshowpos << scale << "   Iterations: " << iterations << "   Buffer: " << bufferWidth << "x" << bufferHeight << "   Time: " << time << " ms   |   ";
@@ -237,6 +248,40 @@ void create_dialog(GtkWindow *window, char *title, char *message)
 
 void openHelp(GtkWidget *widget, int whichWindow)
 {
+	ofstream outfile;
+	outfile.open("measurements.txt", std::ios_base::out);
+
+	for(int y=1; y<=25; y++)
+	{
+		blockHeight = y;
+
+		for(int x=1; x<=25; x++)
+		{
+			if (x*y > 512)
+			{
+				outfile << "\t";
+				continue;
+			}
+
+			blockWidth = x;
+
+			vector<double> times;
+
+			for (int i=0; i<50; i++)
+			{
+				updateBuffer();
+				times.push_back(globalTime);
+			}
+
+			nth_element(times.begin(), times.begin() + 5, times.end());
+			outfile << times[5] << "\t";
+			cerr << x << ", " << y << " -> " << times[5] << endl;
+		}
+
+		outfile << endl;
+	}
+
+
 	if (whichWindow == 0)
 		create_dialog((GtkWindow*)window, "Usage", "Arrow keys: moving the view up/down and left/right\nPlus\\minus keys: zooming in\\out\n\nQ\\A: increasing\\decreasing the number of iterations\nW\\S: increasing\\decreasing the number of iterations by 100");
 	else

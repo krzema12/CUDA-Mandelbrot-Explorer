@@ -73,3 +73,4 @@ packages/
 *.testsettings
 
 *.pdb
+measurements.txt
