@@ -17,6 +17,7 @@ using namespace std;
 // http://developer.download.nvidia.com/compute/cuda/4_1/rel/toolkit/docs/online/group__CUDART__DEVICE_g028e5b0474379eaf5f5d54657d48600b.html#g028e5b0474379eaf5f5d54657d48600b
 
 #define CPU	0
+//#define PIXEL_PER_THREAD
 
 GtkWidget *window;
 GtkWidget *da;
@@ -33,6 +34,7 @@ int currentPaletteID = 0;
 
 int blockWidth = 16;
 int blockHeight = 16;
+int threads = 100000;
 
 int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
@@ -65,7 +67,6 @@ void setDefaultView()
 
 static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer data)
 {   
-	cairo_set_antialias(cr, CAIRO_ANTIALIAS_GRAY);
 	cairo_scale(cr, 1.0/(double)supersampling, 1.0/(double)supersampling);
 	gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
 	cairo_paint(cr);
@@ -114,15 +115,20 @@ void updateBuffer()
 		}
 	}
 	else
-	{		
+	{
+#ifdef PIXEL_PER_THREAD
 		dim3 threads(blockWidth, blockHeight);
 		dim3 grid((bufferWidth + (blockWidth - 1))/blockWidth, (bufferHeight + (blockHeight - 1))/blockHeight);
 
 		mandelbrotPixel<<<grid, threads>>>(deviceBuffer, devicePalette, bufferWidth, bufferHeight, centerX, centerY, scale, iterations);
-		
-		//cudaError_t err = cudaSuccess; 
-		//err = cudaGetLastError();
-		//cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err) << endl;
+#else
+
+		mandelbrotThread<<<(bufferWidth*bufferHeight + blockWidth - 1)/blockWidth, blockWidth>>>
+			(deviceBuffer, devicePalette, bufferWidth, bufferHeight, threads, centerX, centerY, scale, iterations);
+#endif
+		cudaError_t err = cudaSuccess; 
+		err = cudaGetLastError();
+		cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err) << endl;
 		
 		cudaMemcpy(rawBuffer, deviceBuffer, bufferWidth*bufferHeight*3, cudaMemcpyDeviceToHost);
 	}
