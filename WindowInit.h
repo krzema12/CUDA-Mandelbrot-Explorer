@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #define WINDOW_WIDTH  1024
-#define WINDOW_HEIGHT 600
+#define WINDOW_HEIGHT 768
 
 GtkWidget* createWindow(GCallback onKeyPressCallback);
 GtkWidget* createDeviceMenu(GCallback menuitem_response);

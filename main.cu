@@ -17,7 +17,7 @@ using namespace std;
 // http://developer.download.nvidia.com/compute/cuda/4_1/rel/toolkit/docs/online/group__CUDART__DEVICE_g028e5b0474379eaf5f5d54657d48600b.html#g028e5b0474379eaf5f5d54657d48600b
 
 #define CPU	0
-//#define PIXEL_PER_THREAD
+#define PIXEL_PER_THREAD
 
 GtkWidget *window;
 GtkWidget *da;
@@ -34,7 +34,7 @@ int currentPaletteID = 0;
 
 int blockWidth = 16;
 int blockHeight = 16;
-int threads = 100000;
+int threads = 1000000;
 
 int devicesCount, currentDevice = 0;
 cudaDeviceProp *deviceProps;
@@ -126,9 +126,12 @@ void updateBuffer()
 		mandelbrotThread<<<(bufferWidth*bufferHeight + blockWidth - 1)/blockWidth, blockWidth>>>
 			(deviceBuffer, devicePalette, bufferWidth, bufferHeight, threads, centerX, centerY, scale, iterations);
 #endif
+
+#ifdef _DEBUG
 		cudaError_t err = cudaSuccess; 
 		err = cudaGetLastError();
 		cerr << "Failed to launch kernel (error code %s)! " << cudaGetErrorString(err) << endl;
+#endif
 		
 		cudaMemcpy(rawBuffer, deviceBuffer, bufferWidth*bufferHeight*3, cudaMemcpyDeviceToHost);
 	}
@@ -254,40 +257,41 @@ void create_dialog(GtkWindow *window, char *title, char *message)
 
 void openHelp(GtkWidget *widget, int whichWindow)
 {
-	ofstream outfile;
-	outfile.open("measurements.txt", std::ios_base::out);
+	// performance testing
+	//
+	//ofstream outfile;
+	//outfile.open("measurements.txt", std::ios_base::out);
 
-	for(int y=1; y<=40; y++)
-	{
-		blockHeight = y;
+	//for(int y=1; y<=40; y++)
+	//{
+	//	blockHeight = y;
 
-		for(int x=1; x<=40; x++)
-		{
-			if (x*y > 512)
-			{
-				outfile << "\t";
-				continue;
-			}
+	//	for(int x=1; x<=40; x++)
+	//	{
+	//		if (x*y > 512)
+	//		{
+	//			outfile << "\t";
+	//			continue;
+	//		}
 
-			blockWidth = x;
+	//		blockWidth = x;
 
-			double sum = 0.0;
+	//		double sum = 0.0;
 
-			for (int i=0; i<50; i++)
-			{
-				updateBuffer();
-				sum += globalTime;
-			}
+	//		for (int i=0; i<50; i++)
+	//		{
+	//			updateBuffer();
+	//			sum += globalTime;
+	//		}
 
-			double avgTime = sum/50.0;
+	//		double avgTime = sum/50.0;
 
-			outfile << avgTime << "\t";
-			cerr << x << ", " << y << " -> " << avgTime << endl;
-		}
+	//		outfile << avgTime << "\t";
+	//		cerr << x << ", " << y << " -> " << avgTime << endl;
+	//	}
 
-		outfile << endl;
-	}
-
+	//	outfile << endl;
+	//}
 
 	if (whichWindow == 0)
 		create_dialog((GtkWindow*)window, "Usage", "Arrow keys: moving the view up/down and left/right\nPlus\\minus keys: zooming in\\out\n\nQ\\A: increasing\\decreasing the number of iterations\nW\\S: increasing\\decreasing the number of iterations by 100");

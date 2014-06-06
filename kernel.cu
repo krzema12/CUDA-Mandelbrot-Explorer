@@ -67,11 +67,11 @@ __global__ void mandelbrotThread(byte *output, byte *palette, int width, int hei
 	int tid = blockDim.x * blockIdx.x + threadIdx.x;
 	int eachThread = (width*height + threads - 1)/threads;
 	int c = tid*eachThread; // 'c' like current pixel index
-	int x, y, i;
+	int x, y, t;
 
 	float ratio = (float)width/(float)height;
 
-	for (i=0; i<eachThread; i++, c++)
+	for (t=0; t<eachThread; t++, c++)
 	{
 		y = c/width;
 		x = c%width;
