@@ -8,7 +8,7 @@ It started as a school project for *'CUDA\CELL Parallel Computing'* class. Becau
 You're welcome to fork, I'll be glad to merge your version into the project if it contains some significant improvements.
 
 ## Build prerequisites ##
-* CUDA SDK
+* CUDA SDK 6.0 or newer
 * GTK+ 3.0 or newer. You can download it here: http://www.gtk.org/download/. For Windows and for this moment, I recommend the **All-in-one bundle**.
 
 *[under construction - to be continued]*
