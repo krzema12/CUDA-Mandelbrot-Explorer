@@ -2,6 +2,8 @@
 
 ![Screenshot](/Stuff/Whole-GPU.png?raw=true "CUDA Mandelbrot Explorer")
 
+Movie: https://youtu.be/9vycPjCRT_8
+
 ## About the project ##
 This is a multi-platform application which lets you explore the beauty of Mandelbrot set. The main feature of this app is using CUDA to generate the fractal. If you have [CUDA-enabled device](https://developer.nvidia.com/cuda-gpus), you can select it in *Device* menu.
 
